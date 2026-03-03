@@ -1,0 +1,306 @@
+<%@ Language="VBScript" CodePage=65001 %>
+<%
+Response.CodePage = 65001
+Session.CodePage = 65001
+Response.Charset = "UTF-8"
+Response.ContentType = "text/html; charset=UTF-8"
+%>
+<!--#include file="include/config.asp"-->
+<!--#include file="include/db_connection.asp"-->
+<!--#include file="include/functions.asp"-->
+<%
+' ============================================
+' インポート画面
+' ============================================
+
+Dim conn, rs, sql
+Dim errorMsg, successCount, errorCount
+errorMsg = ""
+successCount = 0
+errorCount = 0
+
+' IIf関数
+Function IIf(condition, trueValue, falseValue)
+    If condition Then
+        IIf = trueValue
+    Else
+        IIf = falseValue
+    End If
+End Function
+
+' CSVパース関数
+Function ParseCSVLine(line)
+    Dim result(), field, inQuotes, i, c, fieldIndex
+    ReDim result(0)
+    field = ""
+    inQuotes = False
+    fieldIndex = 0
+
+    For i = 1 To Len(line)
+        c = Mid(line, i, 1)
+        If c = """" Then
+            If inQuotes And Mid(line, i + 1, 1) = """" Then
+                field = field & """"
+                i = i + 1
+            Else
+                inQuotes = Not inQuotes
+            End If
+        ElseIf c = "," And Not inQuotes Then
+            ReDim Preserve result(fieldIndex)
+            result(fieldIndex) = field
+            field = ""
+            fieldIndex = fieldIndex + 1
+        Else
+            field = field & c
+        End If
+    Next
+    ReDim Preserve result(fieldIndex)
+    result(fieldIndex) = field
+    ParseCSVLine = result
+End Function
+
+' 社員コードからIDを取得
+Function GetEmployeeIdByCode(conn, code)
+    Dim rsTemp, sqlTemp, id
+    id = 0
+    sqlTemp = "SELECT employee_id FROM M_Employee WHERE employee_code = N'" & EscapeSQL(code) & "' AND is_active = 1"
+    Set rsTemp = conn.Execute(sqlTemp)
+    If Not rsTemp.EOF Then id = rsTemp("employee_id")
+    rsTemp.Close
+    Set rsTemp = Nothing
+    GetEmployeeIdByCode = id
+End Function
+
+' 日付をSQL用にフォーマット
+Function FormatDateForSQL(dt)
+    Dim d
+    d = CDate(dt)
+    FormatDateForSQL = Year(d) & "-" & Right("0" & Month(d), 2) & "-" & Right("0" & Day(d), 2)
+End Function
+
+Set conn = GetDBConnection()
+
+' POST処理
+If Request.ServerVariables("REQUEST_METHOD") = "POST" Then
+    Dim csvData, lines, j, cols
+    Dim requesterId, assigneeId, requestTitle, requestContent, deadlineDate
+    Dim errorDetails, requesterCode, assigneeCode, lineErrors
+
+    csvData = Trim(Request.Form("csv_data") & "")
+    errorDetails = ""
+
+    If csvData = "" Then
+        errorMsg = "CSVデータを入力してください。"
+    Else
+        lines = Split(Replace(csvData, vbCrLf, vbLf), vbLf)
+
+        For j = 1 To UBound(lines)
+            Dim line
+            line = Trim(lines(j))
+
+            If line <> "" Then
+                cols = ParseCSVLine(line)
+                lineErrors = ""
+
+                If UBound(cols) >= 3 Then
+                    Dim clientCode, projectCode, clientId, projectId
+                    requesterCode = Trim(cols(0))
+                    assigneeCode = Trim(cols(1))
+                    requestTitle = Trim(cols(2))
+                    deadlineDate = Trim(cols(3))
+                    requestContent = ""
+                    clientCode = ""
+                    projectCode = ""
+                    If UBound(cols) >= 4 Then requestContent = Trim(cols(4))
+                    If UBound(cols) >= 5 Then clientCode = Trim(cols(5))
+                    If UBound(cols) >= 6 Then projectCode = Trim(cols(6))
+
+                    requesterId = GetEmployeeIdByCode(conn, requesterCode)
+                    assigneeId = GetEmployeeIdByCode(conn, assigneeCode)
+
+                    ' 取引先コードからIDを取得
+                    clientId = 0
+                    If clientCode <> "" Then
+                        Dim rsClientLookup
+                        Set rsClientLookup = conn.Execute("SELECT client_id FROM M_Client WHERE client_code = N'" & EscapeSQL(clientCode) & "' AND is_active = 1")
+                        If Not rsClientLookup.EOF Then clientId = rsClientLookup("client_id")
+                        CloseRecordset rsClientLookup
+                    End If
+
+                    ' 案件コードからIDを取得
+                    projectId = 0
+                    If projectCode <> "" Then
+                        Dim rsProjectLookup
+                        Set rsProjectLookup = conn.Execute("SELECT project_id FROM M_Project WHERE project_code = N'" & EscapeSQL(projectCode) & "' AND is_active = 1")
+                        If Not rsProjectLookup.EOF Then projectId = rsProjectLookup("project_id")
+                        CloseRecordset rsProjectLookup
+                    End If
+
+                    ' エラーチェック
+                    If requesterId = 0 Then
+                        lineErrors = lineErrors & "依頼元コード「" & requesterCode & "」が見つかりません。"
+                    End If
+                    If assigneeId = 0 Then
+                        If lineErrors <> "" Then lineErrors = lineErrors & " "
+                        lineErrors = lineErrors & "依頼先コード「" & assigneeCode & "」が見つかりません。"
+                    End If
+                    If requestTitle = "" Then
+                        If lineErrors <> "" Then lineErrors = lineErrors & " "
+                        lineErrors = lineErrors & "依頼件名が空です。"
+                    End If
+                    If Not IsDate(deadlineDate) Then
+                        If lineErrors <> "" Then lineErrors = lineErrors & " "
+                        lineErrors = lineErrors & "期限日「" & deadlineDate & "」が無効です。"
+                    End If
+                    If clientCode <> "" And clientId = 0 Then
+                        If lineErrors <> "" Then lineErrors = lineErrors & " "
+                        lineErrors = lineErrors & "取引先コード「" & clientCode & "」が見つかりません。"
+                    End If
+                    If projectCode <> "" And projectId = 0 Then
+                        If lineErrors <> "" Then lineErrors = lineErrors & " "
+                        lineErrors = lineErrors & "案件コード「" & projectCode & "」が見つかりません。"
+                    End If
+
+                    ' client_id, project_idのSQL値
+                    Dim clientIdSQL, projectIdSQL
+                    If clientId > 0 Then clientIdSQL = CStr(clientId) Else clientIdSQL = "NULL"
+                    If projectId > 0 Then projectIdSQL = CStr(projectId) Else projectIdSQL = "NULL"
+
+                    If lineErrors <> "" Then
+                        errorCount = errorCount + 1
+                        errorDetails = errorDetails & "行" & (j + 1) & ": " & lineErrors & vbCrLf
+                    Else
+                        sql = "INSERT INTO T_Request (requester_id, assignee_id, request_title, request_content, deadline_date, client_id, project_id, status_id) " & _
+                              "VALUES (" & requesterId & ", " & assigneeId & ", N'" & EscapeSQL(requestTitle) & "', N'" & EscapeSQL(requestContent) & "', '" & FormatDateForSQL(deadlineDate) & "', " & clientIdSQL & ", " & projectIdSQL & ", " & STATUS_NOT_STARTED & ")"
+
+                        On Error Resume Next
+                        conn.Execute sql
+                        If Err.Number <> 0 Then
+                            errorCount = errorCount + 1
+                            errorDetails = errorDetails & "行" & (j + 1) & ": データベース登録エラー" & vbCrLf
+                            Err.Clear
+                        Else
+                            successCount = successCount + 1
+                        End If
+                        On Error GoTo 0
+                    End If
+                Else
+                    errorCount = errorCount + 1
+                    errorDetails = errorDetails & "行" & (j + 1) & ": 列数が不足しています（最低4列必要）" & vbCrLf
+                End If
+            End If
+        Next
+
+        If successCount > 0 And errorCount = 0 Then
+            SetMessage "success", successCount & " 件の依頼を登録しました。"
+            Response.Redirect "request_list.asp"
+            Response.End
+        ElseIf successCount > 0 And errorCount > 0 Then
+            SetMessage "success", successCount & " 件の依頼を登録しました。（" & errorCount & " 件はエラー）"
+            errorMsg = errorDetails
+        ElseIf errorCount > 0 Then
+            errorMsg = "インポートに失敗しました。" & vbCrLf & errorDetails
+        End If
+    End If
+End If
+
+%>
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= APP_TITLE %></title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <header class="site-header">
+        <div class="header-container">
+            <h1 class="site-title"><a href="index.asp"><%= APP_TITLE %></a></h1>
+            <nav class="main-nav">
+                <ul>
+                    <li><a href="index.asp">ホーム</a></li>
+                    <li><a href="request_list.asp">依頼一覧</a></li>
+                    <li><a href="request_new.asp">新規登録</a></li>
+                    <li><a href="master_employee.asp">社員管理</a></li>
+                    <li><a href="master_client.asp">取引先管理</a></li>
+                    <li><a href="master_project.asp">案件管理</a></li>
+                    <li><a href="export.asp">エクスポート</a></li>
+                    <li><a href="import.asp">インポート</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+    <main class="main-content">
+        <div class="container">
+            <%= GetMessage() %>
+
+<h2 class="page-title">インポート</h2>
+
+<% If errorMsg <> "" Then %>
+<div class="message message-error" style="white-space: pre-line;"><%= HtmlEncode(errorMsg) %></div>
+<% End If %>
+
+<div class="card">
+    <h3 class="card-title">CSVインポート</h3>
+    <form method="post" action="import.asp">
+        <div class="form-group">
+            <label>CSVファイル選択</label>
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <input type="file" id="csv_file" class="form-control" accept=".csv,.txt" style="flex: 1;">
+                <select id="csv_encoding" class="form-control" style="width: 120px;">
+                    <option value="Shift_JIS">Shift-JIS</option>
+                    <option value="UTF-8">UTF-8</option>
+                </select>
+            </div>
+            <small style="color: #666;">※ファイルを選択すると下のテキストエリアに内容が読み込まれます（文字化けする場合は文字コードを変更してください）</small>
+        </div>
+        <div class="form-group">
+            <label>CSVデータ<span class="required">*</span></label>
+            <textarea name="csv_data" id="csv_data" class="form-control" rows="10" placeholder="依頼元コード,依頼先コード,依頼件名,期限日,依頼内容,取引先コード,案件コード"><%= HtmlEncode(Request.Form("csv_data") & "") %></textarea>
+        </div>
+        <div class="btn-group">
+            <button type="submit" class="btn btn-primary" onclick="return confirm('インポートを実行しますか？');">インポート実行</button>
+            <button type="button" class="btn btn-secondary" onclick="clearCsvData();">クリア</button>
+        </div>
+    </form>
+</div>
+
+<%
+CloseDBConnection conn
+%>
+        </div>
+    </main>
+    <script src="js/common.js"></script>
+    <script>
+    // CSVファイル読み込み処理
+    function loadCsvFile() {
+        var fileInput = document.getElementById('csv_file');
+        var file = fileInput.files[0];
+        if (!file) return;
+
+        var encoding = document.getElementById('csv_encoding').value;
+        var reader = new FileReader();
+        reader.onload = function(event) {
+            document.getElementById('csv_data').value = event.target.result;
+        };
+        reader.onerror = function() {
+            alert('ファイルの読み込みに失敗しました。');
+        };
+        reader.readAsText(file, encoding);
+    }
+
+    // ファイル選択時
+    document.getElementById('csv_file').addEventListener('change', loadCsvFile);
+
+    // 文字コード変更時に再読み込み
+    document.getElementById('csv_encoding').addEventListener('change', loadCsvFile);
+
+    // クリアボタン処理
+    function clearCsvData() {
+        document.getElementById('csv_data').value = '';
+        document.getElementById('csv_file').value = '';
+    }
+    </script>
+</body>
+</html>
