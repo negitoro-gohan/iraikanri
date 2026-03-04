@@ -38,14 +38,14 @@ If Request.ServerVariables("REQUEST_METHOD") = "POST" Then
     assigneeId  = 0
     If requesterCode <> "" Then
         Dim rsReqLookup
-        sql = "SELECT employee_id FROM M_Employee WHERE employee_code = N'" & EscapeSQL(requesterCode) & "' AND is_active = 1"
+        sql = "SELECT employee_id FROM IRAI.M_Employee WHERE employee_code = N'" & EscapeSQL(requesterCode) & "' AND is_active = 1"
         Set rsReqLookup = conn.Execute(sql)
         If Not rsReqLookup.EOF Then requesterId = CLng(rsReqLookup("employee_id"))
         CloseRecordset rsReqLookup
     End If
     If assigneeCode <> "" Then
         Dim rsAsgLookup
-        sql = "SELECT employee_id FROM M_Employee WHERE employee_code = N'" & EscapeSQL(assigneeCode) & "' AND is_active = 1"
+        sql = "SELECT employee_id FROM IRAI.M_Employee WHERE employee_code = N'" & EscapeSQL(assigneeCode) & "' AND is_active = 1"
         Set rsAsgLookup = conn.Execute(sql)
         If Not rsAsgLookup.EOF Then assigneeId = CLng(rsAsgLookup("employee_id"))
         CloseRecordset rsAsgLookup
@@ -55,7 +55,7 @@ If Request.ServerVariables("REQUEST_METHOD") = "POST" Then
     clientId = 0
     If clientCode <> "" Then
         Dim rsClientLookup
-        sql = "SELECT client_id FROM M_Client WHERE client_code = N'" & EscapeSQL(clientCode) & "' AND is_active = 1"
+        sql = "SELECT client_id FROM IRAI.M_Client WHERE client_code = N'" & EscapeSQL(clientCode) & "' AND is_active = 1"
         Set rsClientLookup = conn.Execute(sql)
         If Not rsClientLookup.EOF Then clientId = CLng(rsClientLookup("client_id"))
         CloseRecordset rsClientLookup
@@ -65,7 +65,7 @@ If Request.ServerVariables("REQUEST_METHOD") = "POST" Then
     projectId = 0
     If projectCode <> "" Then
         Dim rsProjectLookup
-        sql = "SELECT project_id FROM M_Project WHERE project_code = N'" & EscapeSQL(projectCode) & "' AND is_active = 1"
+        sql = "SELECT project_id FROM IRAI.M_Project WHERE project_code = N'" & EscapeSQL(projectCode) & "' AND is_active = 1"
         Set rsProjectLookup = conn.Execute(sql)
         If Not rsProjectLookup.EOF Then projectId = CLng(rsProjectLookup("project_id"))
         CloseRecordset rsProjectLookup
@@ -98,7 +98,7 @@ If Request.ServerVariables("REQUEST_METHOD") = "POST" Then
         projectIdSQL = IIf(projectId > 0, CStr(projectId), "NULL")
 
         ' 登録処理
-        sql = "INSERT INTO T_Request (requester_id, assignee_id, request_title, request_content, deadline_date, status_id, client_id, project_id, created_by, updated_by) " & _
+        sql = "INSERT INTO IRAI.T_Request (requester_id, assignee_id, request_title, request_content, deadline_date, status_id, client_id, project_id, created_by, updated_by) " & _
               "VALUES (" & requesterId & ", " & assigneeId & ", N'" & EscapeSQL(requestTitle) & "', N'" & EscapeSQL(requestContent) & "', '" & deadlineDate & "', " & STATUS_NOT_STARTED & ", " & clientIdSQL & ", " & projectIdSQL & ", N'" & EscapeSQL(domainUser) & "', N'" & EscapeSQL(domainUser) & "'); SELECT SCOPE_IDENTITY() AS NewID"
 
         On Error Resume Next
@@ -134,7 +134,7 @@ projectDisplayName = ""
 
 If clientCode <> "" Then
     Dim rsClientDisp
-    sql = "SELECT client_name FROM M_Client WHERE client_code = N'" & EscapeSQL(clientCode) & "' AND is_active = 1"
+    sql = "SELECT client_name FROM IRAI.M_Client WHERE client_code = N'" & EscapeSQL(clientCode) & "' AND is_active = 1"
     Set rsClientDisp = conn.Execute(sql)
     If Not rsClientDisp.EOF Then clientDisplayName = rsClientDisp("client_name") & ""
     CloseRecordset rsClientDisp
@@ -142,7 +142,7 @@ End If
 
 If projectCode <> "" Then
     Dim rsProjectDisp
-    sql = "SELECT project_name FROM M_Project WHERE project_code = N'" & EscapeSQL(projectCode) & "' AND is_active = 1"
+    sql = "SELECT project_name FROM IRAI.M_Project WHERE project_code = N'" & EscapeSQL(projectCode) & "' AND is_active = 1"
     Set rsProjectDisp = conn.Execute(sql)
     If Not rsProjectDisp.EOF Then projectDisplayName = rsProjectDisp("project_name") & ""
     CloseRecordset rsProjectDisp

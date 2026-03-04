@@ -53,12 +53,12 @@ If Request.QueryString("action") = "download" Then
           "c.client_code, c.client_name, p.project_code, p.project_name, " & _
           "r.deadline_date, s.status_name, r.request_content, r.response_content, " & _
           "r.end_date, r.created_at, r.updated_at " & _
-          "FROM T_Request r " & _
-          "INNER JOIN M_Employee req ON r.requester_id = req.employee_id " & _
-          "INNER JOIN M_Employee ass ON r.assignee_id = ass.employee_id " & _
+          "FROM IRAI.T_Request r " & _
+          "INNER JOIN IRAI.M_Employee req ON r.requester_id = req.employee_id " & _
+          "INNER JOIN IRAI.M_Employee ass ON r.assignee_id = ass.employee_id " & _
           "INNER JOIN M_Status s ON r.status_id = s.status_id " & _
-          "LEFT JOIN M_Client c ON r.client_id = c.client_id " & _
-          "LEFT JOIN M_Project p ON r.project_id = p.project_id " & _
+          "LEFT JOIN IRAI.M_Client c ON r.client_id = c.client_id " & _
+          "LEFT JOIN IRAI.M_Project p ON r.project_id = p.project_id " & _
           whereClause & " ORDER BY r.deadline_date ASC"
     Set rs = conn.Execute(sql)
 
@@ -101,7 +101,7 @@ Response.ContentType = "text/html; charset=UTF-8"
 Set conn = GetDBConnection()
 
 Dim rsEmployee
-Set rsEmployee = conn.Execute("SELECT employee_id, employee_name FROM M_Employee WHERE is_active = 1 ORDER BY employee_name")
+Set rsEmployee = conn.Execute("SELECT employee_id, employee_name FROM IRAI.M_Employee WHERE is_active = 1 ORDER BY employee_name")
 
 ' 社員リストを配列に格納
 Dim empIds(), empNames(), empCount

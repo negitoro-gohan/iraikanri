@@ -38,9 +38,9 @@ Response.Write "[期限間近の依頼]" & vbCrLf
 
 sql = "SELECT r.request_id, r.request_title, r.deadline_date, r.request_content, " & _
       "req.employee_name AS requester_name, ass.employee_name AS assignee_name, ass.email AS assignee_email " & _
-      "FROM T_Request r " & _
-      "INNER JOIN M_Employee req ON r.requester_id = req.employee_id " & _
-      "INNER JOIN M_Employee ass ON r.assignee_id = ass.employee_id " & _
+      "FROM IRAI.T_Request r " & _
+      "INNER JOIN IRAI.M_Employee req ON r.requester_id = req.employee_id " & _
+      "INNER JOIN IRAI.M_Employee ass ON r.assignee_id = ass.employee_id " & _
       "WHERE r.is_deleted = 0 " & _
       "AND r.status_id NOT IN (" & STATUS_COMPLETED & "," & STATUS_NOT_APPLICABLE & ") " & _
       "AND r.deadline_date = DATEADD(day, " & REMIND_DAYS_BEFORE & ", CONVERT(DATE, GETDATE())) " & _
@@ -92,9 +92,9 @@ Response.Write "[期限切れの依頼]" & vbCrLf
 
 sql = "SELECT r.request_id, r.request_title, r.deadline_date, r.request_content, " & _
       "req.employee_name AS requester_name, ass.employee_name AS assignee_name, ass.email AS assignee_email " & _
-      "FROM T_Request r " & _
-      "INNER JOIN M_Employee req ON r.requester_id = req.employee_id " & _
-      "INNER JOIN M_Employee ass ON r.assignee_id = ass.employee_id " & _
+      "FROM IRAI.T_Request r " & _
+      "INNER JOIN IRAI.M_Employee req ON r.requester_id = req.employee_id " & _
+      "INNER JOIN IRAI.M_Employee ass ON r.assignee_id = ass.employee_id " & _
       "WHERE r.is_deleted = 0 " & _
       "AND r.status_id NOT IN (" & STATUS_COMPLETED & "," & STATUS_NOT_APPLICABLE & ") " & _
       "AND r.deadline_date = DATEADD(day, -1, CONVERT(DATE, GETDATE())) " & _

@@ -28,7 +28,7 @@ End If
 Set conn = GetDBConnection()
 
 ' 論理削除処理
-sql = "UPDATE T_Request SET is_deleted = 1, updated_at = GETDATE() WHERE request_id = " & requestId
+sql = "UPDATE IRAI.T_Request SET is_deleted = 1, updated_at = GETDATE() WHERE request_id = " & requestId
 
 On Error Resume Next
 conn.Execute sql

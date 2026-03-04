@@ -27,12 +27,12 @@ Set conn = GetDBConnection()
 ' キーワードが空の場合は全件返す
 If keyword = "" Then
     sql = "SELECT TOP 50 employee_id, employee_code, employee_name, email " & _
-          "FROM M_Employee " & _
+          "FROM IRAI.M_Employee " & _
           "WHERE is_active = 1 " & _
           "ORDER BY employee_code"
 Else
     sql = "SELECT TOP 50 employee_id, employee_code, employee_name, email " & _
-          "FROM M_Employee " & _
+          "FROM IRAI.M_Employee " & _
           "WHERE is_active = 1 " & _
           "AND (employee_code LIKE N'%" & EscapeSQL(keyword) & "%' " & _
           "  OR employee_name LIKE N'%" & EscapeSQL(keyword) & "%') " & _

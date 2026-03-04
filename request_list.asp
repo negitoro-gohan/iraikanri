@@ -58,7 +58,7 @@ Select Case LCase(sortColumn)
     Case "status_id"
         sortColumnSQL = "r.status_id"
     Case "created_at"
-        sortColumnSQL = "r.created_at"        ' M_Client / M_Project にも同名カラムがあるため必ずテーブル修飾が必要
+        sortColumnSQL = "r.created_at"        ' IRAI.M_Client / IRAI.M_Project にも同名カラムがあるため必ずテーブル修飾が必要
     Case Else
         sortColumn    = "deadline_date"
         sortColumnSQL = "r.deadline_date"
@@ -87,10 +87,10 @@ If filterStatus > 0 Then
     whereClause = whereClause & " AND r.status_id = " & filterStatus
 End If
 If filterRequester <> "" Then
-    whereClause = whereClause & " AND r.requester_id IN (SELECT employee_id FROM M_Employee WHERE employee_code = N'" & EscapeSQL(filterRequester) & "' AND is_active = 1)"
+    whereClause = whereClause & " AND r.requester_id IN (SELECT employee_id FROM IRAI.M_Employee WHERE employee_code = N'" & EscapeSQL(filterRequester) & "' AND is_active = 1)"
 End If
 If filterAssignee <> "" Then
-    whereClause = whereClause & " AND r.assignee_id IN (SELECT employee_id FROM M_Employee WHERE employee_code = N'" & EscapeSQL(filterAssignee) & "' AND is_active = 1)"
+    whereClause = whereClause & " AND r.assignee_id IN (SELECT employee_id FROM IRAI.M_Employee WHERE employee_code = N'" & EscapeSQL(filterAssignee) & "' AND is_active = 1)"
 End If
 If filterKeyword <> "" Then
     whereClause = whereClause & " AND (r.request_title LIKE N'%" & EscapeSQL(filterKeyword) & "%' OR r.request_content LIKE N'%" & EscapeSQL(filterKeyword) & "%')"
@@ -109,7 +109,7 @@ If filterProjectCode <> "" Then
 End If
 
 ' 総件数取得
-sql = "SELECT COUNT(*) FROM T_Request r " & whereClause
+sql = "SELECT COUNT(*) FROM IRAI.T_Request r " & whereClause
 Set rs = conn.Execute(sql)
 totalRecords = rs(0)
 CloseRecordset rs
@@ -128,18 +128,18 @@ sql = "SELECT * FROM (" & _
       "r.client_id, r.project_id, c.client_code, c.client_name, p.project_code, p.project_name, " & _
       "req.employee_name AS requester_name, ass.employee_name AS assignee_name, " & _
       "ROW_NUMBER() OVER (ORDER BY " & sortColumnSQL & " " & sortDir & ") AS RowNum " & _
-      "FROM T_Request r " & _
-      "INNER JOIN M_Employee req ON r.requester_id = req.employee_id " & _
-      "INNER JOIN M_Employee ass ON r.assignee_id = ass.employee_id " & _
-      "LEFT JOIN M_Client c ON r.client_id = c.client_id " & _
-      "LEFT JOIN M_Project p ON r.project_id = p.project_id " & _
+      "FROM IRAI.T_Request r " & _
+      "INNER JOIN IRAI.M_Employee req ON r.requester_id = req.employee_id " & _
+      "INNER JOIN IRAI.M_Employee ass ON r.assignee_id = ass.employee_id " & _
+      "LEFT JOIN IRAI.M_Client c ON r.client_id = c.client_id " & _
+      "LEFT JOIN IRAI.M_Project p ON r.project_id = p.project_id " & _
       whereClause & _
       ") AS t WHERE RowNum > " & startRecord & " AND RowNum <= " & (startRecord + ITEMS_PER_PAGE)
 Set rs = conn.Execute(sql)
 
 ' 取引先一覧取得（フィルタ用）
 Dim rsClients, clientIds(), clientCodes(), clientNames(), clientCount
-sql = "SELECT client_id, client_code, client_name FROM M_Client WHERE is_active = 1 ORDER BY client_code"
+sql = "SELECT client_id, client_code, client_name FROM IRAI.M_Client WHERE is_active = 1 ORDER BY client_code"
 Set rsClients = conn.Execute(sql)
 clientCount = 0
 Do While Not rsClients.EOF

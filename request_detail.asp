@@ -29,11 +29,11 @@ Set conn = GetDBConnection()
 sql = "SELECT r.*, req.employee_name AS requester_name, req.email AS requester_email, " & _
       "ass.employee_name AS assignee_name, ass.email AS assignee_email, " & _
       "c.client_code, c.client_name, p.project_code, p.project_name " & _
-      "FROM T_Request r " & _
-      "INNER JOIN M_Employee req ON r.requester_id = req.employee_id " & _
-      "INNER JOIN M_Employee ass ON r.assignee_id = ass.employee_id " & _
-      "LEFT JOIN M_Client c ON r.client_id = c.client_id " & _
-      "LEFT JOIN M_Project p ON r.project_id = p.project_id " & _
+      "FROM IRAI.T_Request r " & _
+      "INNER JOIN IRAI.M_Employee req ON r.requester_id = req.employee_id " & _
+      "INNER JOIN IRAI.M_Employee ass ON r.assignee_id = ass.employee_id " & _
+      "LEFT JOIN IRAI.M_Client c ON r.client_id = c.client_id " & _
+      "LEFT JOIN IRAI.M_Project p ON r.project_id = p.project_id " & _
       "WHERE r.request_id = " & requestId & " AND r.is_deleted = 0"
 Set rs = conn.Execute(sql)
 

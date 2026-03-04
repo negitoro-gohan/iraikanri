@@ -51,7 +51,7 @@ If Request.ServerVariables("REQUEST_METHOD") = "POST" Then
                 errorMsg = "社員名を入力してください。"
                 mode = "add"
             Else
-                sql = "INSERT INTO M_Employee (employee_code, employee_name, email, is_active) VALUES (N'" & EscapeSQL(employeeCode) & "', N'" & EscapeSQL(employeeName) & "', N'" & EscapeSQL(email) & "', " & isActive & ")"
+                sql = "INSERT INTO IRAI.M_Employee (employee_code, employee_name, email, is_active) VALUES (N'" & EscapeSQL(employeeCode) & "', N'" & EscapeSQL(employeeName) & "', N'" & EscapeSQL(email) & "', " & isActive & ")"
                 On Error Resume Next
                 conn.Execute sql
                 If Err.Number <> 0 Then
@@ -76,7 +76,7 @@ If Request.ServerVariables("REQUEST_METHOD") = "POST" Then
                 mode = "edit"
                 editId = id
             Else
-                sql = "UPDATE M_Employee SET employee_code = N'" & EscapeSQL(employeeCode) & "', employee_name = N'" & EscapeSQL(employeeName) & "', email = N'" & EscapeSQL(email) & "', is_active = " & isActive & ", updated_at = GETDATE() WHERE employee_id = " & id
+                sql = "UPDATE IRAI.M_Employee SET employee_code = N'" & EscapeSQL(employeeCode) & "', employee_name = N'" & EscapeSQL(employeeName) & "', email = N'" & EscapeSQL(email) & "', is_active = " & isActive & ", updated_at = GETDATE() WHERE employee_id = " & id
                 On Error Resume Next
                 conn.Execute sql
                 If Err.Number <> 0 Then
@@ -94,12 +94,12 @@ If Request.ServerVariables("REQUEST_METHOD") = "POST" Then
 
         Case "delete"
             ' 依頼元または依頼先として使用中かチェック
-            sql = "SELECT COUNT(*) FROM T_Request WHERE (requester_id = " & id & " OR assignee_id = " & id & ") AND is_deleted = 0"
+            sql = "SELECT COUNT(*) FROM IRAI.T_Request WHERE (requester_id = " & id & " OR assignee_id = " & id & ") AND is_deleted = 0"
             Set rs = conn.Execute(sql)
             If rs(0) > 0 Then
                 SetMessage "error", "この社員は依頼で使用中のため削除できません。"
             Else
-                sql = "DELETE FROM M_Employee WHERE employee_id = " & id
+                sql = "DELETE FROM IRAI.M_Employee WHERE employee_id = " & id
                 On Error Resume Next
                 conn.Execute sql
                 If Err.Number <> 0 Then
@@ -119,7 +119,7 @@ End If
 ' 編集データ取得
 Dim editData
 If mode = "edit" And editId > 0 Then
-    sql = "SELECT * FROM M_Employee WHERE employee_id = " & editId
+    sql = "SELECT * FROM IRAI.M_Employee WHERE employee_id = " & editId
     Set editData = conn.Execute(sql)
     If editData.EOF Then
         mode = "list"
@@ -268,7 +268,7 @@ End If
         </thead>
         <tbody>
         <%
-        sql = "SELECT * FROM M_Employee ORDER BY employee_code"
+        sql = "SELECT * FROM IRAI.M_Employee ORDER BY employee_code"
         Set rs = conn.Execute(sql)
 
         If rs.EOF Then

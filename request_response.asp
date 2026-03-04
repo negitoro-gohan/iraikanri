@@ -51,7 +51,7 @@ If Request.ServerVariables("REQUEST_METHOD") = "POST" Then
         If domainUser = "" Then domainUser = Request.ServerVariables("AUTH_USER")
 
         ' 更新処理
-        sql = "UPDATE T_Request SET " & _
+        sql = "UPDATE IRAI.T_Request SET " & _
               "status_id = " & statusId & ", " & _
               "response_content = N'" & EscapeSQL(responseContent) & "', "
 
@@ -81,9 +81,9 @@ End If
 
 ' 依頼データ取得
 sql = "SELECT r.*, req.employee_name AS requester_name, ass.employee_name AS assignee_name " & _
-      "FROM T_Request r " & _
-      "INNER JOIN M_Employee req ON r.requester_id = req.employee_id " & _
-      "INNER JOIN M_Employee ass ON r.assignee_id = ass.employee_id " & _
+      "FROM IRAI.T_Request r " & _
+      "INNER JOIN IRAI.M_Employee req ON r.requester_id = req.employee_id " & _
+      "INNER JOIN IRAI.M_Employee ass ON r.assignee_id = ass.employee_id " & _
       "WHERE r.request_id = " & requestId & " AND r.is_deleted = 0"
 Set rs = conn.Execute(sql)
 

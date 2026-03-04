@@ -47,14 +47,14 @@ If Request.ServerVariables("REQUEST_METHOD") = "POST" Then
     assigneeId = 0
     If requesterCode <> "" Then
         Dim rsReqLookup
-        sql = "SELECT employee_id FROM M_Employee WHERE employee_code = N'" & EscapeSQL(requesterCode) & "' AND is_active = 1"
+        sql = "SELECT employee_id FROM IRAI.M_Employee WHERE employee_code = N'" & EscapeSQL(requesterCode) & "' AND is_active = 1"
         Set rsReqLookup = conn.Execute(sql)
         If Not rsReqLookup.EOF Then requesterId = CLng(rsReqLookup("employee_id"))
         CloseRecordset rsReqLookup
     End If
     If assigneeCode <> "" Then
         Dim rsAsgLookup
-        sql = "SELECT employee_id FROM M_Employee WHERE employee_code = N'" & EscapeSQL(assigneeCode) & "' AND is_active = 1"
+        sql = "SELECT employee_id FROM IRAI.M_Employee WHERE employee_code = N'" & EscapeSQL(assigneeCode) & "' AND is_active = 1"
         Set rsAsgLookup = conn.Execute(sql)
         If Not rsAsgLookup.EOF Then assigneeId = CLng(rsAsgLookup("employee_id"))
         CloseRecordset rsAsgLookup
@@ -95,7 +95,7 @@ If Request.ServerVariables("REQUEST_METHOD") = "POST" Then
         End If
 
         ' 更新処理
-        sql = "UPDATE T_Request SET " & _
+        sql = "UPDATE IRAI.T_Request SET " & _
               "requester_id = " & requesterId & ", " & _
               "assignee_id = " & assigneeId & ", " & _
               "request_title = N'" & EscapeSQL(requestTitle) & "', " & _
@@ -122,7 +122,7 @@ If Request.ServerVariables("REQUEST_METHOD") = "POST" Then
 End If
 
 ' 依頼データ取得
-sql = "SELECT * FROM T_Request WHERE request_id = " & requestId & " AND is_deleted = 0"
+sql = "SELECT * FROM IRAI.T_Request WHERE request_id = " & requestId & " AND is_deleted = 0"
 Set rs = conn.Execute(sql)
 
 If rs.EOF Then
@@ -136,10 +136,10 @@ End If
 ' 現在の依頼元・依頼先の社員コードを取得
 Dim requesterEmployeeCode, assigneeEmployeeCode
 Dim rsEmpReq, rsEmpAsg
-Set rsEmpReq = conn.Execute("SELECT employee_code FROM M_Employee WHERE employee_id = " & rs("requester_id"))
+Set rsEmpReq = conn.Execute("SELECT employee_code FROM IRAI.M_Employee WHERE employee_id = " & rs("requester_id"))
 If Not rsEmpReq.EOF Then requesterEmployeeCode = rsEmpReq("employee_code") & ""
 CloseRecordset rsEmpReq
-Set rsEmpAsg = conn.Execute("SELECT employee_code FROM M_Employee WHERE employee_id = " & rs("assignee_id"))
+Set rsEmpAsg = conn.Execute("SELECT employee_code FROM IRAI.M_Employee WHERE employee_id = " & rs("assignee_id"))
 If Not rsEmpAsg.EOF Then assigneeEmployeeCode = rsEmpAsg("employee_code") & ""
 CloseRecordset rsEmpAsg
 
@@ -152,7 +152,7 @@ If Not IsNull(rs("project_id")) Then currentProjectId = rs("project_id")
 
 ' 取引先一覧取得
 Dim rsClients
-sql = "SELECT client_id, client_code, client_name FROM M_Client WHERE is_active = 1 ORDER BY client_code"
+sql = "SELECT client_id, client_code, client_name FROM IRAI.M_Client WHERE is_active = 1 ORDER BY client_code"
 Set rsClients = conn.Execute(sql)
 %>
 <!DOCTYPE html>

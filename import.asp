@@ -63,7 +63,7 @@ End Function
 Function GetEmployeeIdByCode(conn, code)
     Dim rsTemp, sqlTemp, id
     id = 0
-    sqlTemp = "SELECT employee_id FROM M_Employee WHERE employee_code = N'" & EscapeSQL(code) & "' AND is_active = 1"
+    sqlTemp = "SELECT employee_id FROM IRAI.M_Employee WHERE employee_code = N'" & EscapeSQL(code) & "' AND is_active = 1"
     Set rsTemp = conn.Execute(sqlTemp)
     If Not rsTemp.EOF Then id = rsTemp("employee_id")
     rsTemp.Close
@@ -122,7 +122,7 @@ If Request.ServerVariables("REQUEST_METHOD") = "POST" Then
                     clientId = 0
                     If clientCode <> "" Then
                         Dim rsClientLookup
-                        Set rsClientLookup = conn.Execute("SELECT client_id FROM M_Client WHERE client_code = N'" & EscapeSQL(clientCode) & "' AND is_active = 1")
+                        Set rsClientLookup = conn.Execute("SELECT client_id FROM IRAI.M_Client WHERE client_code = N'" & EscapeSQL(clientCode) & "' AND is_active = 1")
                         If Not rsClientLookup.EOF Then clientId = rsClientLookup("client_id")
                         CloseRecordset rsClientLookup
                     End If
@@ -131,7 +131,7 @@ If Request.ServerVariables("REQUEST_METHOD") = "POST" Then
                     projectId = 0
                     If projectCode <> "" Then
                         Dim rsProjectLookup
-                        Set rsProjectLookup = conn.Execute("SELECT project_id FROM M_Project WHERE project_code = N'" & EscapeSQL(projectCode) & "' AND is_active = 1")
+                        Set rsProjectLookup = conn.Execute("SELECT project_id FROM IRAI.M_Project WHERE project_code = N'" & EscapeSQL(projectCode) & "' AND is_active = 1")
                         If Not rsProjectLookup.EOF Then projectId = rsProjectLookup("project_id")
                         CloseRecordset rsProjectLookup
                     End If
@@ -170,7 +170,7 @@ If Request.ServerVariables("REQUEST_METHOD") = "POST" Then
                         errorCount = errorCount + 1
                         errorDetails = errorDetails & "行" & (j + 1) & ": " & lineErrors & vbCrLf
                     Else
-                        sql = "INSERT INTO T_Request (requester_id, assignee_id, request_title, request_content, deadline_date, client_id, project_id, status_id) " & _
+                        sql = "INSERT INTO IRAI.T_Request (requester_id, assignee_id, request_title, request_content, deadline_date, client_id, project_id, status_id) " & _
                               "VALUES (" & requesterId & ", " & assigneeId & ", N'" & EscapeSQL(requestTitle) & "', N'" & EscapeSQL(requestContent) & "', '" & FormatDateForSQL(deadlineDate) & "', " & clientIdSQL & ", " & projectIdSQL & ", " & STATUS_NOT_STARTED & ")"
 
                         On Error Resume Next

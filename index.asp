@@ -20,25 +20,25 @@ Dim countOverdue, countSoon, countInProgress, countTotal
 Set conn = GetDBConnection()
 
 ' 期限切れ件数（未完了のみ）
-sql = "SELECT COUNT(*) FROM T_Request WHERE is_deleted = 0 AND status_id NOT IN (" & STATUS_COMPLETED & "," & STATUS_NOT_APPLICABLE & ") AND deadline_date < CONVERT(DATE, GETDATE())"
+sql = "SELECT COUNT(*) FROM IRAI.T_Request WHERE is_deleted = 0 AND status_id NOT IN (" & STATUS_COMPLETED & "," & STATUS_NOT_APPLICABLE & ") AND deadline_date < CONVERT(DATE, GETDATE())"
 Set rs = conn.Execute(sql)
 countOverdue = rs(0)
 CloseRecordset rs
 
 ' 期限間近件数（未完了で期限が今日から3日以内）
-sql = "SELECT COUNT(*) FROM T_Request WHERE is_deleted = 0 AND status_id NOT IN (" & STATUS_COMPLETED & "," & STATUS_NOT_APPLICABLE & ") AND deadline_date >= CONVERT(DATE, GETDATE()) AND deadline_date <= DATEADD(day, " & REMIND_DAYS_BEFORE & ", CONVERT(DATE, GETDATE()))"
+sql = "SELECT COUNT(*) FROM IRAI.T_Request WHERE is_deleted = 0 AND status_id NOT IN (" & STATUS_COMPLETED & "," & STATUS_NOT_APPLICABLE & ") AND deadline_date >= CONVERT(DATE, GETDATE()) AND deadline_date <= DATEADD(day, " & REMIND_DAYS_BEFORE & ", CONVERT(DATE, GETDATE()))"
 Set rs = conn.Execute(sql)
 countSoon = rs(0)
 CloseRecordset rs
 
 ' 着手済件数
-sql = "SELECT COUNT(*) FROM T_Request WHERE is_deleted = 0 AND status_id = " & STATUS_IN_PROGRESS
+sql = "SELECT COUNT(*) FROM IRAI.T_Request WHERE is_deleted = 0 AND status_id = " & STATUS_IN_PROGRESS
 Set rs = conn.Execute(sql)
 countInProgress = rs(0)
 CloseRecordset rs
 
 ' 全件数（未削除）
-sql = "SELECT COUNT(*) FROM T_Request WHERE is_deleted = 0"
+sql = "SELECT COUNT(*) FROM IRAI.T_Request WHERE is_deleted = 0"
 Set rs = conn.Execute(sql)
 countTotal = rs(0)
 CloseRecordset rs

@@ -32,7 +32,7 @@ Set conn = GetDBConnection()
 ' フィルタ用取引先コードからIDと名称を取得
 If filterClientCode <> "" Then
     Dim rsFilter
-    Set rsFilter = conn.Execute("SELECT client_id, client_name FROM M_Client WHERE client_code = N'" & EscapeSQL(filterClientCode) & "' AND is_active = 1")
+    Set rsFilter = conn.Execute("SELECT client_id, client_name FROM IRAI.M_Client WHERE client_code = N'" & EscapeSQL(filterClientCode) & "' AND is_active = 1")
     If Not rsFilter.EOF Then
         filterClientId = CLng(rsFilter("client_id"))
         filterClientName = rsFilter("client_name") & ""
@@ -53,7 +53,7 @@ If Request.ServerVariables("REQUEST_METHOD") = "POST" Then
     ' 取引先コードからIDと名称を取得
     If formClientCode <> "" Then
         Dim rsFormClient
-        Set rsFormClient = conn.Execute("SELECT client_id, client_name FROM M_Client WHERE client_code = N'" & EscapeSQL(formClientCode) & "' AND is_active = 1")
+        Set rsFormClient = conn.Execute("SELECT client_id, client_name FROM IRAI.M_Client WHERE client_code = N'" & EscapeSQL(formClientCode) & "' AND is_active = 1")
         If Not rsFormClient.EOF Then
             formClientId = CLng(rsFormClient("client_id"))
             formClientName = rsFormClient("client_name") & ""
@@ -71,12 +71,12 @@ If Request.ServerVariables("REQUEST_METHOD") = "POST" Then
             errorMsg = "案件名を入力してください。"
         Else
             ' 重複チェック
-            sql = "SELECT COUNT(*) FROM M_Project WHERE project_code = N'" & EscapeSQL(projectCode) & "'"
+            sql = "SELECT COUNT(*) FROM IRAI.M_Project WHERE project_code = N'" & EscapeSQL(projectCode) & "'"
             Set rs = conn.Execute(sql)
             If rs(0) > 0 Then
                 errorMsg = "この案件コードは既に登録されています。"
             Else
-                sql = "INSERT INTO M_Project (client_id, project_code, project_name, is_active) VALUES (" & formClientId & ", N'" & EscapeSQL(projectCode) & "', N'" & EscapeSQL(projectName) & "', " & isActive & ")"
+                sql = "INSERT INTO IRAI.M_Project (client_id, project_code, project_name, is_active) VALUES (" & formClientId & ", N'" & EscapeSQL(projectCode) & "', N'" & EscapeSQL(projectName) & "', " & isActive & ")"
                 On Error Resume Next
                 conn.Execute sql
                 If Err.Number <> 0 Then
@@ -102,12 +102,12 @@ If Request.ServerVariables("REQUEST_METHOD") = "POST" Then
             errorMsg = "案件名を入力してください。"
         Else
             ' 重複チェック（自分以外）
-            sql = "SELECT COUNT(*) FROM M_Project WHERE project_code = N'" & EscapeSQL(projectCode) & "' AND project_id <> " & postProjectId
+            sql = "SELECT COUNT(*) FROM IRAI.M_Project WHERE project_code = N'" & EscapeSQL(projectCode) & "' AND project_id <> " & postProjectId
             Set rs = conn.Execute(sql)
             If rs(0) > 0 Then
                 errorMsg = "この案件コードは既に使用されています。"
             Else
-                sql = "UPDATE M_Project SET client_id = " & formClientId & ", project_code = N'" & EscapeSQL(projectCode) & "', project_name = N'" & EscapeSQL(projectName) & "', is_active = " & isActive & ", updated_at = GETDATE() WHERE project_id = " & postProjectId
+                sql = "UPDATE IRAI.M_Project SET client_id = " & formClientId & ", project_code = N'" & EscapeSQL(projectCode) & "', project_name = N'" & EscapeSQL(projectName) & "', is_active = " & isActive & ", updated_at = GETDATE() WHERE project_id = " & postProjectId
                 On Error Resume Next
                 conn.Execute sql
                 If Err.Number <> 0 Then
@@ -125,7 +125,7 @@ If Request.ServerVariables("REQUEST_METHOD") = "POST" Then
 
     ElseIf action = "delete" And postProjectId > 0 Then
         ' 削除（依頼が紐づいている場合は削除不可）
-        sql = "SELECT COUNT(*) FROM T_Request WHERE project_id = " & postProjectId
+        sql = "SELECT COUNT(*) FROM IRAI.T_Request WHERE project_id = " & postProjectId
         Set rs = conn.Execute(sql)
         If rs(0) > 0 Then
             errorMsg = "この案件には依頼が登録されているため削除できません。"
@@ -133,11 +133,11 @@ If Request.ServerVariables("REQUEST_METHOD") = "POST" Then
             ' リダイレクト用に取引先コードを取得
             Dim rsDelProj, delClientCode
             delClientCode = ""
-            Set rsDelProj = conn.Execute("SELECT c.client_code FROM M_Project p INNER JOIN M_Client c ON p.client_id = c.client_id WHERE p.project_id = " & postProjectId)
+            Set rsDelProj = conn.Execute("SELECT c.client_code FROM IRAI.M_Project p INNER JOIN IRAI.M_Client c ON p.client_id = c.client_id WHERE p.project_id = " & postProjectId)
             If Not rsDelProj.EOF Then delClientCode = rsDelProj("client_code") & ""
             CloseRecordset rsDelProj
 
-            sql = "DELETE FROM M_Project WHERE project_id = " & postProjectId
+            sql = "DELETE FROM IRAI.M_Project WHERE project_id = " & postProjectId
             On Error Resume Next
             conn.Execute sql
             If Err.Number <> 0 Then
@@ -159,8 +159,8 @@ Dim editProject, editClientCode, editClientName
 editClientCode = ""
 editClientName = ""
 If mode = "edit" And projectId > 0 Then
-    sql = "SELECT p.*, c.client_code, c.client_name FROM M_Project p " & _
-          "INNER JOIN M_Client c ON p.client_id = c.client_id " & _
+    sql = "SELECT p.*, c.client_code, c.client_name FROM IRAI.M_Project p " & _
+          "INNER JOIN IRAI.M_Client c ON p.client_id = c.client_id " & _
           "WHERE p.project_id = " & projectId
     Set editProject = conn.Execute(sql)
     If editProject.EOF Then
@@ -194,8 +194,8 @@ Else
 End If
 
 ' 案件一覧取得
-sql = "SELECT p.*, c.client_code, c.client_name FROM M_Project p " & _
-      "INNER JOIN M_Client c ON p.client_id = c.client_id"
+sql = "SELECT p.*, c.client_code, c.client_name FROM IRAI.M_Project p " & _
+      "INNER JOIN IRAI.M_Client c ON p.client_id = c.client_id"
 If filterClientId > 0 Then
     sql = sql & " WHERE p.client_id = " & filterClientId
 End If

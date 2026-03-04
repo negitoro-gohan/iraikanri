@@ -30,7 +30,7 @@ Dim conn, rs, sql
 Set conn = GetDBConnection()
 
 ' 社員コードで検索（有効な社員のみ）
-sql = "SELECT employee_id, employee_name FROM M_Employee " & _
+sql = "SELECT employee_id, employee_name FROM IRAI.M_Employee " & _
       "WHERE employee_code = N'" & EscapeSQL(employeeCode) & "' AND is_active = 1"
 
 Set rs = conn.Execute(sql)

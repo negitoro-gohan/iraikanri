@@ -22,7 +22,7 @@ Set conn = GetDBConnection()
 
 If action = "clients" Then
     ' 取引先一覧を返す
-    sql = "SELECT client_id, client_code, client_name FROM M_Client WHERE is_active = 1 ORDER BY client_code"
+    sql = "SELECT client_id, client_code, client_name FROM IRAI.M_Client WHERE is_active = 1 ORDER BY client_code"
     Set rs = conn.Execute(sql)
 
     Response.Write "["
@@ -41,7 +41,7 @@ If action = "clients" Then
 
 ElseIf action = "projects" And clientId > 0 Then
     ' 指定した取引先の案件一覧を返す
-    sql = "SELECT project_id, project_code, project_name FROM M_Project WHERE client_id = " & clientId & " AND is_active = 1 ORDER BY project_code"
+    sql = "SELECT project_id, project_code, project_name FROM IRAI.M_Project WHERE client_id = " & clientId & " AND is_active = 1 ORDER BY project_code"
     Set rs = conn.Execute(sql)
 
     Response.Write "["
@@ -64,7 +64,7 @@ ElseIf action = "lookup_client" Then
     If lookupClientCode = "" Then
         Response.Write "{""found"":false}"
     Else
-        sql = "SELECT client_id, client_name FROM M_Client WHERE client_code = N'" & EscapeSQL(lookupClientCode) & "' AND is_active = 1"
+        sql = "SELECT client_id, client_name FROM IRAI.M_Client WHERE client_code = N'" & EscapeSQL(lookupClientCode) & "' AND is_active = 1"
         Set rs = conn.Execute(sql)
         If rs.EOF Then
             Response.Write "{""found"":false}"
@@ -81,7 +81,7 @@ ElseIf action = "lookup_project" Then
     If lookupProjectCode = "" Then
         Response.Write "{""found"":false}"
     Else
-        sql = "SELECT project_id, project_name FROM M_Project WHERE project_code = N'" & EscapeSQL(lookupProjectCode) & "' AND is_active = 1"
+        sql = "SELECT project_id, project_name FROM IRAI.M_Project WHERE project_code = N'" & EscapeSQL(lookupProjectCode) & "' AND is_active = 1"
         Set rs = conn.Execute(sql)
         If rs.EOF Then
             Response.Write "{""found"":false}"
