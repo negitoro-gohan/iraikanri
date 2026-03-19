@@ -49,16 +49,12 @@ If Request.QueryString("action") = "download" Then
         whereClause = whereClause & " AND r.assignee_id = " & filterAssignee
     End If
 
-    sql = "SELECT r.request_id, r.request_title, req.employee_name AS requester_name, ass.employee_name AS assignee_name, " & _
-          "c.client_code, c.client_name, p.project_code, p.project_name, " & _
+    sql = "SELECT r.request_id, r.request_title, r.requester_name, r.assignee_name, " & _
+          "r.client_code, r.client_name, r.project_code, r.project_name, " & _
           "r.deadline_date, s.status_name, r.request_content, r.response_content, " & _
           "r.end_date, r.created_at, r.updated_at " & _
           "FROM IRAI.T_Request r " & _
-          "INNER JOIN IRAI.M_Employee req ON r.requester_id = req.employee_id " & _
-          "INNER JOIN IRAI.M_Employee ass ON r.assignee_id = ass.employee_id " & _
           "INNER JOIN M_Status s ON r.status_id = s.status_id " & _
-          "LEFT JOIN IRAI.M_Client c ON r.client_id = c.client_id " & _
-          "LEFT JOIN IRAI.M_Project p ON r.project_id = p.project_id " & _
           whereClause & " ORDER BY r.deadline_date ASC"
     Set rs = conn.Execute(sql)
 
@@ -100,8 +96,9 @@ Response.ContentType = "text/html; charset=UTF-8"
 
 Set conn = GetDBConnection()
 
-Dim rsEmployee
-Set rsEmployee = conn.Execute("SELECT employee_id, employee_name FROM IRAI.M_Employee WHERE is_active = 1 ORDER BY employee_name")
+Dim rsEmployee, connEmpExport
+Set connEmpExport = GetEmployeeDBConnection()
+Set rsEmployee = connEmpExport.Execute("SELECT employee_id, employee_name FROM IRAI.M_Employee WHERE is_active = 1 ORDER BY employee_name")
 
 ' 社員リストを配列に格納
 Dim empIds(), empNames(), empCount
@@ -115,6 +112,7 @@ Do While Not rsEmployee.EOF
     rsEmployee.MoveNext
 Loop
 CloseRecordset rsEmployee
+CloseDBConnection connEmpExport
 %>
 <!DOCTYPE html>
 <html lang="ja">
@@ -161,7 +159,7 @@ CloseRecordset rsEmployee
                 <option value="0">-- すべて --</option>
                 <option value="<%= STATUS_NOT_STARTED %>">未着手</option>
                 <option value="<%= STATUS_IN_PROGRESS %>">着手済</option>
-                <option value="<%= STATUS_COMPLETED %>">対応完了</option>
+                <option value="<%= STATUS_COMPLETED %>">対応終了</option>
                 <option value="<%= STATUS_NOT_APPLICABLE %>">対象外</option>
             </select>
         </div>

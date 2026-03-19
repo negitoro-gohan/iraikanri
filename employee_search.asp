@@ -21,7 +21,7 @@ Dim keyword
 keyword = Trim(Request.QueryString("keyword") & "")
 
 Dim conn, rs, sql
-Set conn = GetDBConnection()
+Set conn = GetEmployeeDBConnection()
 
 ' 社員コードまたは社員名で部分一致検索（有効な社員のみ、最大50件）
 ' キーワードが空の場合は全件返す

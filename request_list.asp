@@ -15,7 +15,7 @@ Response.ContentType = "text/html; charset=UTF-8"
 ' ============================================
 
 Dim conn, rs, sql
-Dim filterStatus, filterRequester, filterAssignee, filterKeyword, filterPreset, filterDeadlineFrom, filterDeadlineTo, filterClientCode, filterProjectCode
+Dim filterStatus, filterRequester, filterAssignee, filterKeyword, filterPreset, filterDeadlineFrom, filterDeadlineTo, filterClientCode, filterProjectCode, filterMyAssignee
 Dim sortColumn, sortDir
 Dim currentPage, totalRecords, totalPages, startRecord
 
@@ -30,7 +30,8 @@ filterDeadlineFrom = Trim(Request.QueryString("deadline_from") & "")
 filterDeadlineTo = Trim(Request.QueryString("deadline_to") & "")
 filterClientCode = Trim(Request.QueryString("client_code") & "")
 filterProjectCode = Trim(Request.QueryString("project_code") & "")
-filterPreset = Trim(Request.QueryString("filter") & "")
+filterPreset    = Trim(Request.QueryString("filter")      & "")
+filterMyAssignee = Trim(Request.QueryString("my_assignee") & "")
 
 ' ソートパラメータ取得
 sortColumn = Request.QueryString("sort") & ""
@@ -50,9 +51,9 @@ Select Case LCase(sortColumn)
     Case "request_title"
         sortColumnSQL = "r.request_title"
     Case "requester_name"
-        sortColumnSQL = "req.employee_name"   ' SELECT のエイリアスは ROW_NUMBER 内では使えないため実カラム名を指定
+        sortColumnSQL = "r.requester_name"
     Case "assignee_name"
-        sortColumnSQL = "ass.employee_name"   ' 同上
+        sortColumnSQL = "r.assignee_name"
     Case "deadline_date"
         sortColumnSQL = "r.deadline_date"
     Case "status_id"
@@ -86,11 +87,34 @@ End Select
 If filterStatus > 0 Then
     whereClause = whereClause & " AND r.status_id = " & filterStatus
 End If
+' 社員コードフィルタ: Employee DBから employee_id を先に取得してWHEREに埋め込む
 If filterRequester <> "" Then
-    whereClause = whereClause & " AND r.requester_id IN (SELECT employee_id FROM IRAI.M_Employee WHERE employee_code = N'" & EscapeSQL(filterRequester) & "' AND is_active = 1)"
+    Dim connEmpFilter, rsEmpFilter, filterRequesterId
+    filterRequesterId = 0
+    Set connEmpFilter = GetEmployeeDBConnection()
+    Set rsEmpFilter = connEmpFilter.Execute("SELECT employee_id FROM IRAI.M_Employee WHERE employee_code = N'" & EscapeSQL(filterRequester) & "' AND is_active = 1")
+    If Not rsEmpFilter.EOF Then filterRequesterId = CLng(rsEmpFilter("employee_id"))
+    CloseRecordset rsEmpFilter
+    CloseDBConnection connEmpFilter
+    If filterRequesterId > 0 Then
+        whereClause = whereClause & " AND r.requester_id = " & filterRequesterId
+    Else
+        whereClause = whereClause & " AND 1 = 0" ' 該当なし → 0件
+    End If
 End If
 If filterAssignee <> "" Then
-    whereClause = whereClause & " AND r.assignee_id IN (SELECT employee_id FROM IRAI.M_Employee WHERE employee_code = N'" & EscapeSQL(filterAssignee) & "' AND is_active = 1)"
+    Dim connEmpFilter2, rsEmpFilter2, filterAssigneeId
+    filterAssigneeId = 0
+    Set connEmpFilter2 = GetEmployeeDBConnection()
+    Set rsEmpFilter2 = connEmpFilter2.Execute("SELECT employee_id FROM IRAI.M_Employee WHERE employee_code = N'" & EscapeSQL(filterAssignee) & "' AND is_active = 1")
+    If Not rsEmpFilter2.EOF Then filterAssigneeId = CLng(rsEmpFilter2("employee_id"))
+    CloseRecordset rsEmpFilter2
+    CloseDBConnection connEmpFilter2
+    If filterAssigneeId > 0 Then
+        whereClause = whereClause & " AND r.assignee_id = " & filterAssigneeId
+    Else
+        whereClause = whereClause & " AND 1 = 0" ' 該当なし → 0件
+    End If
 End If
 If filterKeyword <> "" Then
     whereClause = whereClause & " AND (r.request_title LIKE N'%" & EscapeSQL(filterKeyword) & "%' OR r.request_content LIKE N'%" & EscapeSQL(filterKeyword) & "%')"
@@ -106,6 +130,21 @@ If filterClientCode <> "" Then
 End If
 If filterProjectCode <> "" Then
     whereClause = whereClause & " AND r.project_id = " & SafeInt(filterProjectCode, 0)
+End If
+' my_assignee=1: ログインユーザーが依頼先の依頼のみ表示
+If filterMyAssignee = "1" Then
+    Dim connEmpMyMe, rsEmpMyMe, myAssigneeId
+    myAssigneeId = 0
+    Set connEmpMyMe = GetEmployeeDBConnection()
+    Set rsEmpMyMe = connEmpMyMe.Execute("SELECT employee_id FROM IRAI.M_Employee WHERE employee_code = N'" & EscapeSQL(GetCurrentUser()) & "' AND is_active = 1")
+    If Not rsEmpMyMe.EOF Then myAssigneeId = CLng(rsEmpMyMe("employee_id"))
+    CloseRecordset rsEmpMyMe
+    CloseDBConnection connEmpMyMe
+    If myAssigneeId > 0 Then
+        whereClause = whereClause & " AND r.assignee_id = " & myAssigneeId
+    Else
+        whereClause = whereClause & " AND 1 = 0" ' 社員マスターに未登録のため0件
+    End If
 End If
 
 ' 総件数取得
@@ -125,22 +164,20 @@ startRecord = (currentPage - 1) * ITEMS_PER_PAGE
 ' データ取得（ページネーション対応）
 sql = "SELECT * FROM (" & _
       "SELECT r.request_id, r.request_title, r.deadline_date, r.status_id, r.created_at, " & _
-      "r.client_id, r.project_id, c.client_code, c.client_name, p.project_code, p.project_name, " & _
-      "req.employee_name AS requester_name, ass.employee_name AS assignee_name, " & _
+      "r.client_id, r.project_id, r.client_code, r.client_name, r.project_code, r.project_name, " & _
+      "r.requester_name, r.assignee_name, " & _
       "ROW_NUMBER() OVER (ORDER BY " & sortColumnSQL & " " & sortDir & ") AS RowNum " & _
       "FROM IRAI.T_Request r " & _
-      "INNER JOIN IRAI.M_Employee req ON r.requester_id = req.employee_id " & _
-      "INNER JOIN IRAI.M_Employee ass ON r.assignee_id = ass.employee_id " & _
-      "LEFT JOIN IRAI.M_Client c ON r.client_id = c.client_id " & _
-      "LEFT JOIN IRAI.M_Project p ON r.project_id = p.project_id " & _
       whereClause & _
       ") AS t WHERE RowNum > " & startRecord & " AND RowNum <= " & (startRecord + ITEMS_PER_PAGE)
 Set rs = conn.Execute(sql)
 
-' 取引先一覧取得（フィルタ用）
+' 取引先一覧取得（フィルタ用、Client DBへ接続）
 Dim rsClients, clientIds(), clientCodes(), clientNames(), clientCount
+Dim connClientList
+Set connClientList = GetClientDBConnection()
 sql = "SELECT client_id, client_code, client_name FROM IRAI.M_Client WHERE is_active = 1 ORDER BY client_code"
-Set rsClients = conn.Execute(sql)
+Set rsClients = connClientList.Execute(sql)
 clientCount = 0
 Do While Not rsClients.EOF
     ReDim Preserve clientIds(clientCount)
@@ -153,6 +190,7 @@ Do While Not rsClients.EOF
     rsClients.MoveNext
 Loop
 CloseRecordset rsClients
+CloseDBConnection connClientList
 
 %>
 <!DOCTYPE html>
@@ -187,17 +225,52 @@ CloseRecordset rsClients
         <div class="container">
             <%= GetMessage() %>
 
-<h2 class="page-title">依頼一覧</h2>
+<h2 class="page-title">依頼一覧
+<%
+Dim pageTitleSub
+pageTitleSub = ""
+Select Case filterPreset
+    Case "overdue"      : pageTitleSub = "期限切れ"
+    Case "soon"         : pageTitleSub = "期限間近"
+    Case "in_progress"  : pageTitleSub = "着手済"
+End Select
+If filterMyAssignee = "1" Then
+    If pageTitleSub <> "" Then pageTitleSub = pageTitleSub & " / "
+    pageTitleSub = pageTitleSub & "自分が依頼先"
+End If
+If pageTitleSub <> "" Then
+    Response.Write " <small style=""font-size:0.6em;font-weight:normal;color:#666;"">（" & HtmlEncode(pageTitleSub) & "）</small>"
+End If
+%>
+</h2>
 
 <!-- フィルタエリア -->
 <form method="get" action="request_list.asp" class="filter-area">
+    <div class="filter-group">
+        <label>期限フィルタ</label>
+        <select name="filter" class="form-control">
+            <option value="">-- なし --</option>
+            <option value="overdue"     <% If filterPreset = "overdue"      Then Response.Write "selected" End If %>>期限切れ</option>
+            <option value="soon"        <% If filterPreset = "soon"         Then Response.Write "selected" End If %>>期限間近（<%= REMIND_DAYS_BEFORE %>日以内）</option>
+            <option value="in_progress" <% If filterPreset = "in_progress"  Then Response.Write "selected" End If %>>着手済</option>
+        </select>
+    </div>
+
+    <div class="filter-group">
+        <label>対象</label>
+        <label style="display:flex;align-items:center;gap:6px;font-weight:normal;cursor:pointer;padding-top:4px;">
+            <input type="checkbox" name="my_assignee" value="1" <% If filterMyAssignee = "1" Then Response.Write "checked" End If %>>
+            自分が依頼先のみ
+        </label>
+    </div>
+
     <div class="filter-group">
         <label>ステータス</label>
         <select name="status" class="form-control">
             <option value="0">-- すべて --</option>
             <option value="<%= STATUS_NOT_STARTED %>" <% If filterStatus = STATUS_NOT_STARTED Then Response.Write " selected" End If %>>未着手</option>
             <option value="<%= STATUS_IN_PROGRESS %>" <% If filterStatus = STATUS_IN_PROGRESS Then Response.Write " selected" End If %>>着手済</option>
-            <option value="<%= STATUS_COMPLETED %>" <% If filterStatus = STATUS_COMPLETED Then Response.Write " selected" End If %>>対応完了</option>
+            <option value="<%= STATUS_COMPLETED %>" <% If filterStatus = STATUS_COMPLETED Then Response.Write " selected" End If %>>対応終了</option>
             <option value="<%= STATUS_NOT_APPLICABLE %>" <% If filterStatus = STATUS_NOT_APPLICABLE Then Response.Write " selected" End If %>>対象外</option>
         </select>
     </div>
@@ -327,7 +400,7 @@ CloseRecordset rsClients
     ' 前へ
     If currentPage > 1 Then
     %>
-    <a href="request_list.asp?page=<%= currentPage - 1 %>">&laquo; 前へ</a>
+    <a href="request_list.asp?page=<%= currentPage - 1 %><% If filterMyAssignee = "1" Then %>&my_assignee=1<% End If %>">&laquo; 前へ</a>
     <% End If %>
 
     <%
@@ -340,7 +413,7 @@ CloseRecordset rsClients
     <%
         ElseIf Abs(i - currentPage) <= 2 Or i = 1 Or i = totalPages Then
     %>
-    <a href="request_list.asp?page=<%= i %>"><%= i %></a>
+    <a href="request_list.asp?page=<%= i %><% If filterMyAssignee = "1" Then %>&my_assignee=1<% End If %>"><%= i %></a>
     <%
         ElseIf Abs(i - currentPage) = 3 Then
     %>
@@ -354,7 +427,7 @@ CloseRecordset rsClients
     ' 次へ
     If currentPage < totalPages Then
     %>
-    <a href="request_list.asp?page=<%= currentPage + 1 %>">次へ &raquo;</a>
+    <a href="request_list.asp?page=<%= currentPage + 1 %><% If filterMyAssignee = "1" Then %>&my_assignee=1<% End If %>">次へ &raquo;</a>
     <% End If %>
 </div>
 <% End If %>

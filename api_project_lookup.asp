@@ -18,7 +18,7 @@ Dim action, clientId
 action = Trim(Request.QueryString("action") & "")
 clientId = SafeInt(Request.QueryString("client_id"), 0)
 
-Set conn = GetDBConnection()
+Set conn = GetClientDBConnection()
 
 If action = "clients" Then
     ' 取引先一覧を返す

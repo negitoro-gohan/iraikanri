@@ -25,15 +25,8 @@ End If
 
 Set conn = GetDBConnection()
 
-' 依頼データ取得
-sql = "SELECT r.*, req.employee_name AS requester_name, req.email AS requester_email, " & _
-      "ass.employee_name AS assignee_name, ass.email AS assignee_email, " & _
-      "c.client_code, c.client_name, p.project_code, p.project_name " & _
-      "FROM IRAI.T_Request r " & _
-      "INNER JOIN IRAI.M_Employee req ON r.requester_id = req.employee_id " & _
-      "INNER JOIN IRAI.M_Employee ass ON r.assignee_id = ass.employee_id " & _
-      "LEFT JOIN IRAI.M_Client c ON r.client_id = c.client_id " & _
-      "LEFT JOIN IRAI.M_Project p ON r.project_id = p.project_id " & _
+' 依頼データ取得（社員名・取引先・案件はT_Requestに保存済みのカラムを使用）
+sql = "SELECT r.* FROM IRAI.T_Request r " & _
       "WHERE r.request_id = " & requestId & " AND r.is_deleted = 0"
 Set rs = conn.Execute(sql)
 
@@ -44,6 +37,25 @@ If rs.EOF Then
     Response.Redirect "request_list.asp"
     Response.End
 End If
+
+' メールアドレスはT_Requestに保存済みのカラムから取得
+Dim requesterEmail, assigneeEmail
+requesterEmail = rs("requester_email") & ""
+assigneeEmail  = rs("assignee_email")  & ""
+
+' 社員コードをEmployee DBから取得
+Dim requesterCode, assigneeCode
+requesterCode = ""
+assigneeCode  = ""
+Dim connEmpDetail, rsEmpDetail
+Set connEmpDetail = GetEmployeeDBConnection()
+Set rsEmpDetail = connEmpDetail.Execute("SELECT employee_code FROM IRAI.M_Employee WHERE employee_id = " & rs("requester_id"))
+If Not rsEmpDetail.EOF Then requesterCode = rsEmpDetail("employee_code") & ""
+CloseRecordset rsEmpDetail
+Set rsEmpDetail = connEmpDetail.Execute("SELECT employee_code FROM IRAI.M_Employee WHERE employee_id = " & rs("assignee_id"))
+If Not rsEmpDetail.EOF Then assigneeCode = rsEmpDetail("employee_code") & ""
+CloseRecordset rsEmpDetail
+CloseDBConnection connEmpDetail
 
 Dim dlClass
 dlClass = GetDeadlineClass(rs("deadline_date"), rs("status_id"))
@@ -93,18 +105,20 @@ dlClass = GetDeadlineClass(rs("deadline_date"), rs("status_id"))
         <tr>
             <th>依頼元</th>
             <td>
-                <%= HtmlEncode(rs("requester_name")) %>
-                <% If Not IsNull(rs("requester_email")) And rs("requester_email") <> "" Then %>
-                (<%= HtmlEncode(rs("requester_email")) %>)
+                <% If requesterCode <> "" Then %><%= HtmlEncode(requesterCode) %> : <% End If %>
+                <%= HtmlEncode(SafeValue(rs("requester_name"), "（不明）")) %>
+                <% If requesterEmail <> "" Then %>
+                （<%= HtmlEncode(requesterEmail) %>）
                 <% End If %>
             </td>
         </tr>
         <tr>
             <th>依頼先</th>
             <td>
-                <%= HtmlEncode(rs("assignee_name")) %>
-                <% If Not IsNull(rs("assignee_email")) And rs("assignee_email") <> "" Then %>
-                (<%= HtmlEncode(rs("assignee_email")) %>)
+                <% If assigneeCode <> "" Then %><%= HtmlEncode(assigneeCode) %> : <% End If %>
+                <%= HtmlEncode(SafeValue(rs("assignee_name"), "（不明）")) %>
+                <% If assigneeEmail <> "" Then %>
+                （<%= HtmlEncode(assigneeEmail) %>）
                 <% End If %>
             </td>
         </tr>
@@ -155,6 +169,10 @@ dlClass = GetDeadlineClass(rs("deadline_date"), rs("status_id"))
         <tr>
             <th>更新日時</th>
             <td><%= rs("updated_at") %></td>
+        </tr>
+        <tr>
+            <th>最終更新者</th>
+            <td><%= HtmlEncode(SafeValue(rs("updated_by"), "-")) %></td>
         </tr>
     </table>
 

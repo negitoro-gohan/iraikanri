@@ -42,7 +42,7 @@ GO
 INSERT INTO M_Status (status_id, status_name, display_order) VALUES
 (1, N'未着手', 1),
 (2, N'着手済', 2),
-(3, N'対応完了', 3),
+(3, N'対応終了', 3),
 (4, N'対象外', 4);
 GO
 

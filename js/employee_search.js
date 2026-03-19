@@ -31,7 +31,9 @@ function lookupEmployee(type) {
             try {
                 var result = JSON.parse(xhr.responseText);
                 if (result.found) {
-                    nameDisplay.textContent = result.name;
+                    nameDisplay.textContent = result.email
+                        ? result.name + '（' + result.email + '）'
+                        : result.name;
                     nameDisplay.className = 'employee-name-display employee-name-found';
                 } else {
                     nameDisplay.textContent = '該当なし';
@@ -190,7 +192,8 @@ function renderEmployeeSearchResult(employees) {
         var emp = employees[i];
         html += '<tr class="emp-search-row" onclick="selectEmployee(\'' +
             escapeHtmlAttr(emp.employee_code) + '\',\'' +
-            escapeHtmlAttr(emp.employee_name) + '\')">' +
+            escapeHtmlAttr(emp.employee_name) + '\',\'' +
+            escapeHtmlAttr(emp.email || '') + '\')">' +
             '<td>' + escapeHtml(emp.employee_code) + '</td>' +
             '<td>' + escapeHtml(emp.employee_name) + '</td>' +
             '<td>' + escapeHtml(emp.email || '') + '</td>' +
@@ -204,7 +207,7 @@ function renderEmployeeSearchResult(employees) {
 // --------------------------------------------
 // 社員を選択 → テキストボックスにセット＋モーダルを閉じる
 // --------------------------------------------
-function selectEmployee(code, name) {
+function selectEmployee(code, name, email) {
     var codeInput, nameDisplay;
 
     if (currentTargetField === 'requester') {
@@ -218,8 +221,8 @@ function selectEmployee(code, name) {
     // 社員コードをセット
     codeInput.value = code;
 
-    // 社員名を表示
-    nameDisplay.textContent = name;
+    // 社員名とメールアドレスを表示
+    nameDisplay.textContent = email ? name + '（' + email + '）' : name;
     nameDisplay.className = 'employee-name-display employee-name-found';
 
     // モーダルを閉じる

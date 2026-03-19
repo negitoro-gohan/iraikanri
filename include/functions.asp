@@ -80,7 +80,7 @@ Function GetStatusName(statusId)
         Case STATUS_IN_PROGRESS
             GetStatusName = "着手済"
         Case STATUS_COMPLETED
-            GetStatusName = "対応完了"
+            GetStatusName = "対応終了"
         Case STATUS_NOT_APPLICABLE
             GetStatusName = "対象外"
         Case Else
@@ -111,6 +111,24 @@ Function NL2BR(str)
     Else
         NL2BR = Replace(Replace(str, vbCrLf, "<br>"), vbLf, "<br>")
     End If
+End Function
+
+' 現在のログインユーザー名を取得
+' DOMAIN\username 形式の場合、DOMAIN\ 部分を除いたユーザー名のみ返す
+' DEBUG_USER が設定されている場合はそちらを返す（テスト用なりすまし）
+Function GetCurrentUser()
+    Dim u
+    If DEBUG_USER <> "" Then
+        u = DEBUG_USER
+    Else
+        u = Request.ServerVariables("LOGON_USER")
+        If u = "" Then u = Request.ServerVariables("AUTH_USER")
+    End If
+    ' DOMAIN\ プレフィックスを除去
+    Dim pos
+    pos = InStr(u, "\")
+    If pos > 0 Then u = Mid(u, pos + 1)
+    GetCurrentUser = u
 End Function
 
 ' メッセージ表示用のセッションに保存

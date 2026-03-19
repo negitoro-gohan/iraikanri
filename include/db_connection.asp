@@ -11,6 +11,22 @@ Function GetDBConnection()
     Set GetDBConnection = conn
 End Function
 
+' 取引先・案件DBへの接続オブジェクトを取得（Client DB）
+Function GetClientDBConnection()
+    Dim conn
+    Set conn = Server.CreateObject("ADODB.Connection")
+    conn.Open CLIENT_DB_CONNECTION_STRING
+    Set GetClientDBConnection = conn
+End Function
+
+' 社員DBへの接続オブジェクトを取得（Employee DB）
+Function GetEmployeeDBConnection()
+    Dim conn
+    Set conn = Server.CreateObject("ADODB.Connection")
+    conn.Open EMPLOYEE_DB_CONNECTION_STRING
+    Set GetEmployeeDBConnection = conn
+End Function
+
 ' データベース接続を閉じる
 Sub CloseDBConnection(conn)
     If Not conn Is Nothing Then

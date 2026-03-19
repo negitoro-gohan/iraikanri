@@ -27,7 +27,7 @@ formClientCode = ""
 formClientId = 0
 formClientName = ""
 
-Set conn = GetDBConnection()
+Set conn = GetClientDBConnection()
 
 ' フィルタ用取引先コードからIDと名称を取得
 If filterClientCode <> "" Then
@@ -124,12 +124,18 @@ If Request.ServerVariables("REQUEST_METHOD") = "POST" Then
         End If
 
     ElseIf action = "delete" And postProjectId > 0 Then
-        ' 削除（依頼が紐づいている場合は削除不可）
+        ' 削除（依頼が紐づいている場合は削除不可）→ T_Requestは依頼管理DBのため別接続
+        Dim connMainDel
+        Set connMainDel = GetDBConnection()
         sql = "SELECT COUNT(*) FROM IRAI.T_Request WHERE project_id = " & postProjectId
-        Set rs = conn.Execute(sql)
+        Set rs = connMainDel.Execute(sql)
         If rs(0) > 0 Then
+            CloseRecordset rs
+            CloseDBConnection connMainDel
             errorMsg = "この案件には依頼が登録されているため削除できません。"
         Else
+            CloseRecordset rs
+            CloseDBConnection connMainDel
             ' リダイレクト用に取引先コードを取得
             Dim rsDelProj, delClientCode
             delClientCode = ""
@@ -150,7 +156,6 @@ If Request.ServerVariables("REQUEST_METHOD") = "POST" Then
             End If
             On Error GoTo 0
         End If
-        CloseRecordset rs
     End If
 End If
 

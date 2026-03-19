@@ -27,24 +27,27 @@ If employeeCode = "" Then
 End If
 
 Dim conn, rs, sql
-Set conn = GetDBConnection()
+Set conn = GetEmployeeDBConnection()
 
 ' 社員コードで検索（有効な社員のみ）
-sql = "SELECT employee_id, employee_name FROM IRAI.M_Employee " & _
+sql = "SELECT employee_id, employee_name, email FROM IRAI.M_Employee " & _
       "WHERE employee_code = N'" & EscapeSQL(employeeCode) & "' AND is_active = 1"
 
 Set rs = conn.Execute(sql)
 
 If Not rs.EOF Then
     ' JSON文字列内のダブルクォートをエスケープ
-    Dim empName
+    Dim empName, empEmail
     empName = rs("employee_name") & ""
     empName = Replace(empName, "\", "\\")
     empName = Replace(empName, """", "\""")
+    empEmail = rs("email") & ""
+    empEmail = Replace(empEmail, "\", "\\")
+    empEmail = Replace(empEmail, """", "\""")
 
-    Response.Write "{""found"":true,""id"":" & rs("employee_id") & ",""name"":""" & empName & """}"
+    Response.Write "{""found"":true,""id"":" & rs("employee_id") & ",""name"":""" & empName & """,""email"":""" & empEmail & """}"
 Else
-    Response.Write "{""found"":false,""id"":0,""name"":""""}"
+    Response.Write "{""found"":false,""id"":0,""name"":"""",""email"":""""}"
 End If
 
 CloseRecordset rs

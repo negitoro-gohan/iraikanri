@@ -22,54 +22,86 @@ Set conn = GetDBConnection()
 
 ' POST処理（登録実行）
 If Request.ServerVariables("REQUEST_METHOD") = "POST" Then
-    Dim requesterId, assigneeId, requestTitle, requestContent, deadlineDate
+    Dim requesterId, assigneeId, requestTitle, requestContent, deadlineDate, importance, folderAddress
     Dim requesterCode, assigneeCode, clientId, projectId, clientCode, projectCode
 
-    requesterCode = Trim(Request.Form("requester_code") & "")
-    assigneeCode  = Trim(Request.Form("assignee_code")  & "")
-    requestTitle  = Trim(Request.Form("request_title")  & "")
+    requesterCode  = Trim(Request.Form("requester_code")  & "")
+    assigneeCode   = Trim(Request.Form("assignee_code")   & "")
+    requestTitle   = Trim(Request.Form("request_title")   & "")
     requestContent = Trim(Request.Form("request_content") & "")
-    deadlineDate  = Trim(Request.Form("deadline_date")  & "")
-    clientCode    = Trim(Request.Form("client_code")    & "")
-    projectCode   = Trim(Request.Form("project_code")   & "")
+    deadlineDate   = Trim(Request.Form("deadline_date")   & "")
+    clientCode     = Trim(Request.Form("client_code")     & "")
+    projectCode    = Trim(Request.Form("project_code")    & "")
+    importance     = Trim(Request.Form("importance")      & "")
+    folderAddress  = Trim(Request.Form("folder_address")  & "")
+    ' 不正値はデフォルトのB（中）に補正
+    If importance <> "A" And importance <> "B" And importance <> "C" Then importance = "B"
 
-    ' 社員コードからIDを逆引き
+    ' 社員コードからIDと名前を逆引き（Employee DBへ接続）
     requesterId = 0
     assigneeId  = 0
+    Dim requesterName, assigneeName, requesterEmail, assigneeEmail
+    requesterName  = ""
+    assigneeName   = ""
+    requesterEmail = ""
+    assigneeEmail  = ""
+    Dim connEmp
+    Set connEmp = GetEmployeeDBConnection()
     If requesterCode <> "" Then
         Dim rsReqLookup
-        sql = "SELECT employee_id FROM IRAI.M_Employee WHERE employee_code = N'" & EscapeSQL(requesterCode) & "' AND is_active = 1"
-        Set rsReqLookup = conn.Execute(sql)
-        If Not rsReqLookup.EOF Then requesterId = CLng(rsReqLookup("employee_id"))
+        sql = "SELECT employee_id, employee_name, email FROM IRAI.M_Employee WHERE employee_code = N'" & EscapeSQL(requesterCode) & "' AND is_active = 1"
+        Set rsReqLookup = connEmp.Execute(sql)
+        If Not rsReqLookup.EOF Then
+            requesterId    = CLng(rsReqLookup("employee_id"))
+            requesterName  = rsReqLookup("employee_name") & ""
+            requesterEmail = rsReqLookup("email") & ""
+        End If
         CloseRecordset rsReqLookup
     End If
     If assigneeCode <> "" Then
         Dim rsAsgLookup
-        sql = "SELECT employee_id FROM IRAI.M_Employee WHERE employee_code = N'" & EscapeSQL(assigneeCode) & "' AND is_active = 1"
-        Set rsAsgLookup = conn.Execute(sql)
-        If Not rsAsgLookup.EOF Then assigneeId = CLng(rsAsgLookup("employee_id"))
+        sql = "SELECT employee_id, employee_name, email FROM IRAI.M_Employee WHERE employee_code = N'" & EscapeSQL(assigneeCode) & "' AND is_active = 1"
+        Set rsAsgLookup = connEmp.Execute(sql)
+        If Not rsAsgLookup.EOF Then
+            assigneeId    = CLng(rsAsgLookup("employee_id"))
+            assigneeName  = rsAsgLookup("employee_name") & ""
+            assigneeEmail = rsAsgLookup("email") & ""
+        End If
         CloseRecordset rsAsgLookup
     End If
+    CloseDBConnection connEmp
 
-    ' 取引先コードからIDを逆引き
+    ' 取引先コードからIDと名称を逆引き（Client DBへ接続）
     clientId = 0
+    Dim clientName, projectName
+    clientName  = ""
+    projectName = ""
+    Dim connClient
+    Set connClient = GetClientDBConnection()
     If clientCode <> "" Then
         Dim rsClientLookup
-        sql = "SELECT client_id FROM IRAI.M_Client WHERE client_code = N'" & EscapeSQL(clientCode) & "' AND is_active = 1"
-        Set rsClientLookup = conn.Execute(sql)
-        If Not rsClientLookup.EOF Then clientId = CLng(rsClientLookup("client_id"))
+        sql = "SELECT client_id, client_name FROM IRAI.M_Client WHERE client_code = N'" & EscapeSQL(clientCode) & "' AND is_active = 1"
+        Set rsClientLookup = connClient.Execute(sql)
+        If Not rsClientLookup.EOF Then
+            clientId   = CLng(rsClientLookup("client_id"))
+            clientName = rsClientLookup("client_name") & ""
+        End If
         CloseRecordset rsClientLookup
     End If
 
-    ' 案件コードからIDを逆引き
+    ' 案件コードからIDと名称を逆引き（Client DB）
     projectId = 0
     If projectCode <> "" Then
         Dim rsProjectLookup
-        sql = "SELECT project_id FROM IRAI.M_Project WHERE project_code = N'" & EscapeSQL(projectCode) & "' AND is_active = 1"
-        Set rsProjectLookup = conn.Execute(sql)
-        If Not rsProjectLookup.EOF Then projectId = CLng(rsProjectLookup("project_id"))
+        sql = "SELECT project_id, project_name FROM IRAI.M_Project WHERE project_code = N'" & EscapeSQL(projectCode) & "' AND is_active = 1"
+        Set rsProjectLookup = connClient.Execute(sql)
+        If Not rsProjectLookup.EOF Then
+            projectId   = CLng(rsProjectLookup("project_id"))
+            projectName = rsProjectLookup("project_name") & ""
+        End If
         CloseRecordset rsProjectLookup
     End If
+    CloseDBConnection connClient
 
     ' 入力チェック
     If requesterCode = "" Then
@@ -89,17 +121,16 @@ If Request.ServerVariables("REQUEST_METHOD") = "POST" Then
     Else
         ' ドメインユーザー名を取得
         Dim domainUser
-        domainUser = Request.ServerVariables("LOGON_USER")
-        If domainUser = "" Then domainUser = Request.ServerVariables("AUTH_USER")
+        domainUser = GetCurrentUser()
 
         ' client_id, project_id が0の場合はNULLとして扱う
         Dim clientIdSQL, projectIdSQL
         clientIdSQL  = IIf(clientId  > 0, CStr(clientId),  "NULL")
         projectIdSQL = IIf(projectId > 0, CStr(projectId), "NULL")
 
-        ' 登録処理
-        sql = "INSERT INTO IRAI.T_Request (requester_id, assignee_id, request_title, request_content, deadline_date, status_id, client_id, project_id, created_by, updated_by) " & _
-              "VALUES (" & requesterId & ", " & assigneeId & ", N'" & EscapeSQL(requestTitle) & "', N'" & EscapeSQL(requestContent) & "', '" & deadlineDate & "', " & STATUS_NOT_STARTED & ", " & clientIdSQL & ", " & projectIdSQL & ", N'" & EscapeSQL(domainUser) & "', N'" & EscapeSQL(domainUser) & "'); SELECT SCOPE_IDENTITY() AS NewID"
+        ' 登録処理（社員名・メールアドレス・取引先・案件も一緒に保存）
+        sql = "INSERT INTO IRAI.T_Request (requester_id, assignee_id, requester_name, assignee_name, requester_email, assignee_email, request_title, request_content, deadline_date, status_id, importance, folder_address, client_id, client_code, client_name, project_id, project_code, project_name, created_by, updated_by) " & _
+              "VALUES (" & requesterId & ", " & assigneeId & ", N'" & EscapeSQL(requesterName) & "', N'" & EscapeSQL(assigneeName) & "', N'" & EscapeSQL(requesterEmail) & "', N'" & EscapeSQL(assigneeEmail) & "', N'" & EscapeSQL(requestTitle) & "', N'" & EscapeSQL(requestContent) & "', '" & deadlineDate & "', " & STATUS_NOT_STARTED & ", '" & EscapeSQL(importance) & "', N'" & EscapeSQL(folderAddress) & "', " & clientIdSQL & ", N'" & EscapeSQL(clientCode) & "', N'" & EscapeSQL(clientName) & "', " & projectIdSQL & ", N'" & EscapeSQL(projectCode) & "', N'" & EscapeSQL(projectName) & "', N'" & EscapeSQL(domainUser) & "', N'" & EscapeSQL(domainUser) & "'); SELECT SCOPE_IDENTITY() AS NewID"
 
         On Error Resume Next
         Set rs = conn.Execute(sql)
@@ -132,20 +163,24 @@ Dim clientDisplayName, projectDisplayName
 clientDisplayName  = ""
 projectDisplayName = ""
 
-If clientCode <> "" Then
-    Dim rsClientDisp
-    sql = "SELECT client_name FROM IRAI.M_Client WHERE client_code = N'" & EscapeSQL(clientCode) & "' AND is_active = 1"
-    Set rsClientDisp = conn.Execute(sql)
-    If Not rsClientDisp.EOF Then clientDisplayName = rsClientDisp("client_name") & ""
-    CloseRecordset rsClientDisp
-End If
-
-If projectCode <> "" Then
-    Dim rsProjectDisp
-    sql = "SELECT project_name FROM IRAI.M_Project WHERE project_code = N'" & EscapeSQL(projectCode) & "' AND is_active = 1"
-    Set rsProjectDisp = conn.Execute(sql)
-    If Not rsProjectDisp.EOF Then projectDisplayName = rsProjectDisp("project_name") & ""
-    CloseRecordset rsProjectDisp
+If clientCode <> "" Or projectCode <> "" Then
+    Dim connClientDisp
+    Set connClientDisp = GetClientDBConnection()
+    If clientCode <> "" Then
+        Dim rsClientDisp
+        sql = "SELECT client_name FROM IRAI.M_Client WHERE client_code = N'" & EscapeSQL(clientCode) & "' AND is_active = 1"
+        Set rsClientDisp = connClientDisp.Execute(sql)
+        If Not rsClientDisp.EOF Then clientDisplayName = rsClientDisp("client_name") & ""
+        CloseRecordset rsClientDisp
+    End If
+    If projectCode <> "" Then
+        Dim rsProjectDisp
+        sql = "SELECT project_name FROM IRAI.M_Project WHERE project_code = N'" & EscapeSQL(projectCode) & "' AND is_active = 1"
+        Set rsProjectDisp = connClientDisp.Execute(sql)
+        If Not rsProjectDisp.EOF Then projectDisplayName = rsProjectDisp("project_name") & ""
+        CloseRecordset rsProjectDisp
+    End If
+    CloseDBConnection connClientDisp
 End If
 %>
 <!DOCTYPE html>
@@ -251,6 +286,41 @@ End If
             <label>期限日<span class="required">*</span></label>
             <input type="date" name="deadline_date" class="form-control" required
                    value="<%= HtmlEncode(Request.Form("deadline_date") & "") %>">
+        </div>
+
+        <!-- 重要度 -->
+        <div class="form-group">
+            <label>重要度<span class="required">*</span></label>
+            <%
+            Dim selImp
+            selImp = Request.Form("importance") & ""
+            If selImp <> "A" And selImp <> "B" And selImp <> "C" Then selImp = "B"
+            %>
+            <div style="display:flex;gap:24px;align-items:center;padding:6px 0;">
+                <label style="display:flex;align-items:center;gap:6px;font-weight:normal;cursor:pointer;">
+                    <input type="radio" name="importance" value="A" <% If selImp = "A" Then Response.Write "checked" End If %>>
+                    <span style="color:#c0392b;font-weight:bold;">A（高）</span>
+                </label>
+                <label style="display:flex;align-items:center;gap:6px;font-weight:normal;cursor:pointer;">
+                    <input type="radio" name="importance" value="B" <% If selImp = "B" Then Response.Write "checked" End If %>>
+                    <span style="color:#e67e22;font-weight:bold;">B（中）</span>
+                </label>
+                <label style="display:flex;align-items:center;gap:6px;font-weight:normal;cursor:pointer;">
+                    <input type="radio" name="importance" value="C" <% If selImp = "C" Then Response.Write "checked" End If %>>
+                    <span style="color:#7f8c8d;font-weight:bold;">C（低）</span>
+                </label>
+            </div>
+        </div>
+
+        <!-- フォルダアドレス -->
+        <div class="form-group">
+            <label>フォルダアドレス</label>
+            <div style="display:flex;gap:8px;align-items:center;">
+                <input type="text" name="folder_address" id="folder_address" class="form-control" maxlength="500"
+                       placeholder="例: \\server\share\project"
+                       value="<%= HtmlEncode(Request.Form("folder_address") & "") %>">
+                <button type="button" class="btn btn-secondary btn-sm" onclick="copyFolderAddress()" style="white-space:nowrap;">コピー</button>
+            </div>
         </div>
 
         <!-- 依頼内容 -->
@@ -552,6 +622,41 @@ CloseDBConnection conn
     }
     function escJS(str) {
         return String(str).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    }
+
+    // ============================================================
+    // フォルダアドレス コピー
+    // ============================================================
+    function copyFolderAddress() {
+        var input = document.getElementById('folder_address');
+        var text = input.value.trim();
+        if (text === '') {
+            alert('フォルダアドレスが入力されていません。');
+            return;
+        }
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(text).then(function() {
+                showCopyToast();
+            });
+        } else {
+            // フォールバック（HTTP環境など）
+            input.select();
+            document.execCommand('copy');
+            showCopyToast();
+        }
+    }
+
+    function showCopyToast() {
+        var toast = document.getElementById('copyToast');
+        if (!toast) {
+            toast = document.createElement('div');
+            toast.id = 'copyToast';
+            toast.textContent = 'コピーしました';
+            toast.style.cssText = 'position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:8px 20px;border-radius:4px;font-size:0.9rem;z-index:9999;';
+            document.body.appendChild(toast);
+        }
+        toast.style.display = 'block';
+        setTimeout(function() { toast.style.display = 'none'; }, 2000);
     }
 
     // ESCキーでモーダルを閉じる

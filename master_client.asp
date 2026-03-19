@@ -20,7 +20,7 @@ mode = Trim(Request.QueryString("mode") & "")
 clientId = SafeInt(Request.QueryString("id"), 0)
 filterKeyword = Trim(Request.QueryString("keyword") & "")
 
-Set conn = GetDBConnection()
+Set conn = GetClientDBConnection()
 
 ' POST処理
 If Request.ServerVariables("REQUEST_METHOD") = "POST" Then

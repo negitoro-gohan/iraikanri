@@ -29,7 +29,7 @@ mode = Request.QueryString("mode") & ""
 If mode = "" Then mode = "list"
 editId = SafeInt(Request.QueryString("id"), 0)
 
-Set conn = GetDBConnection()
+Set conn = GetEmployeeDBConnection()
 
 ' POST処理
 If Request.ServerVariables("REQUEST_METHOD") = "POST" Then
@@ -93,12 +93,16 @@ If Request.ServerVariables("REQUEST_METHOD") = "POST" Then
             End If
 
         Case "delete"
-            ' 依頼元または依頼先として使用中かチェック
+            ' 依頼元または依頼先として使用中かチェック（依頼管理DBへ別接続）
+            Dim connMain
+            Set connMain = GetDBConnection()
             sql = "SELECT COUNT(*) FROM IRAI.T_Request WHERE (requester_id = " & id & " OR assignee_id = " & id & ") AND is_deleted = 0"
-            Set rs = conn.Execute(sql)
+            Set rs = connMain.Execute(sql)
             If rs(0) > 0 Then
                 SetMessage "error", "この社員は依頼で使用中のため削除できません。"
             Else
+                CloseRecordset rs
+                CloseDBConnection connMain
                 sql = "DELETE FROM IRAI.M_Employee WHERE employee_id = " & id
                 On Error Resume Next
                 conn.Execute sql
@@ -110,7 +114,8 @@ If Request.ServerVariables("REQUEST_METHOD") = "POST" Then
                 End If
                 On Error GoTo 0
             End If
-            CloseRecordset rs
+            If Not rs Is Nothing Then CloseRecordset rs
+            If Not connMain Is Nothing Then CloseDBConnection connMain
             Response.Redirect "master_employee.asp"
             Response.End
     End Select

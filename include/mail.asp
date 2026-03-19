@@ -65,18 +65,17 @@ Sub SendNewRequestMail(conn, requestId)
     Dim rs, sql
     Dim toEmail, subject, body
 
+    ' 依頼データ取得（社員名・メールアドレスはT_Requestに保存済みのカラムを使用）
     sql = "SELECT r.request_id, r.request_title, r.deadline_date, r.request_content, " & _
-          "req.employee_name AS requester_name, ass.employee_name AS assignee_name, ass.email AS assignee_email " & _
+          "r.requester_name, r.assignee_name, r.assignee_email " & _
           "FROM IRAI.T_Request r " & _
-          "INNER JOIN IRAI.M_Employee req ON r.requester_id = req.employee_id " & _
-          "INNER JOIN IRAI.M_Employee ass ON r.assignee_id = ass.employee_id " & _
           "WHERE r.request_id = " & requestId
     Set rs = conn.Execute(sql)
 
     If Not rs.EOF Then
-        toEmail = rs("assignee_email")
+        toEmail = rs("assignee_email") & ""
 
-        If Not IsNull(toEmail) And toEmail <> "" Then
+        If toEmail <> "" Then
             subject = "【新規依頼】" & rs("request_title")
 
             body = "新しい依頼が登録されました。" & vbCrLf & vbCrLf

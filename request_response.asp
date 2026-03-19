@@ -33,22 +33,30 @@ Set conn = GetDBConnection()
 If Request.ServerVariables("REQUEST_METHOD") = "POST" Then
     Dim statusId, responseContent, endDate
 
-    statusId = SafeInt(Request.Form("status_id"), 0)
     responseContent = Trim(Request.Form("response_content") & "")
-    endDate = Trim(Request.Form("end_date") & "")
+    endDate         = Trim(Request.Form("end_date")         & "")
 
     ' 入力チェック
-    If statusId = 0 Then
-        errorMsg = "ステータスを選択してください。"
-    ElseIf statusId = STATUS_COMPLETED And endDate = "" Then
-        errorMsg = "対応完了の場合は終了日を入力してください。"
-    ElseIf endDate <> "" And Not IsDate(endDate) Then
+    If endDate <> "" And Not IsDate(endDate) Then
         errorMsg = "終了日の形式が正しくありません。"
+    ElseIf endDate <> "" And responseContent = "" Then
+        errorMsg = "終了日を入力する場合は、対応内容も入力してください。"
     Else
+        ' ステータスを入力内容から自動決定
+        ' 対応終了：終了日あり かつ 対応内容あり
+        ' 着手済　：終了日なし かつ 対応内容あり
+        ' 未着手　：終了日なし かつ 対応内容なし
+        If endDate <> "" And responseContent <> "" Then
+            statusId = STATUS_COMPLETED
+        ElseIf responseContent <> "" Then
+            statusId = STATUS_IN_PROGRESS
+        Else
+            statusId = STATUS_NOT_STARTED
+        End If
+
         ' ドメインユーザー名を取得
         Dim domainUser
-        domainUser = Request.ServerVariables("LOGON_USER")
-        If domainUser = "" Then domainUser = Request.ServerVariables("AUTH_USER")
+        domainUser = GetCurrentUser()
 
         ' 更新処理
         sql = "UPDATE IRAI.T_Request SET " & _
@@ -79,11 +87,8 @@ If Request.ServerVariables("REQUEST_METHOD") = "POST" Then
     End If
 End If
 
-' 依頼データ取得
-sql = "SELECT r.*, req.employee_name AS requester_name, ass.employee_name AS assignee_name " & _
-      "FROM IRAI.T_Request r " & _
-      "INNER JOIN IRAI.M_Employee req ON r.requester_id = req.employee_id " & _
-      "INNER JOIN IRAI.M_Employee ass ON r.assignee_id = ass.employee_id " & _
+' 依頼データ取得（社員名はT_Requestに保存済みのカラムを使用）
+sql = "SELECT r.* FROM IRAI.T_Request r " & _
       "WHERE r.request_id = " & requestId & " AND r.is_deleted = 0"
 Set rs = conn.Execute(sql)
 
@@ -94,6 +99,20 @@ If rs.EOF Then
     Response.Redirect "request_list.asp"
     Response.End
 End If
+
+' 社員コードをEmployee DBから取得
+Dim requesterCode, assigneeCode
+requesterCode = ""
+assigneeCode  = ""
+Dim connEmpResp, rsEmpResp
+Set connEmpResp = GetEmployeeDBConnection()
+Set rsEmpResp = connEmpResp.Execute("SELECT employee_code FROM IRAI.M_Employee WHERE employee_id = " & rs("requester_id"))
+If Not rsEmpResp.EOF Then requesterCode = rsEmpResp("employee_code") & ""
+CloseRecordset rsEmpResp
+Set rsEmpResp = connEmpResp.Execute("SELECT employee_code FROM IRAI.M_Employee WHERE employee_id = " & rs("assignee_id"))
+If Not rsEmpResp.EOF Then assigneeCode = rsEmpResp("employee_code") & ""
+CloseRecordset rsEmpResp
+CloseDBConnection connEmpResp
 %>
 <!DOCTYPE html>
 <html lang="ja">
@@ -145,11 +164,43 @@ End If
         </tr>
         <tr>
             <th>依頼元</th>
-            <td><%= HtmlEncode(rs("requester_name")) %></td>
+            <td>
+                <% If requesterCode <> "" Then %><%= HtmlEncode(requesterCode) %> : <% End If %>
+                <%= HtmlEncode(SafeValue(rs("requester_name"), "（不明）")) %>
+                <% If Not IsNull(rs("requester_email")) And rs("requester_email") <> "" Then %>
+                （<%= HtmlEncode(rs("requester_email")) %>）
+                <% End If %>
+            </td>
         </tr>
         <tr>
             <th>依頼先</th>
-            <td><%= HtmlEncode(rs("assignee_name")) %></td>
+            <td>
+                <% If assigneeCode <> "" Then %><%= HtmlEncode(assigneeCode) %> : <% End If %>
+                <%= HtmlEncode(SafeValue(rs("assignee_name"), "（不明）")) %>
+                <% If Not IsNull(rs("assignee_email")) And rs("assignee_email") <> "" Then %>
+                （<%= HtmlEncode(rs("assignee_email")) %>）
+                <% End If %>
+            </td>
+        </tr>
+        <tr>
+            <th>取引先</th>
+            <td>
+            <% If Not IsNull(rs("client_name")) And rs("client_name") <> "" Then %>
+                <%= HtmlEncode(rs("client_code")) %> : <%= HtmlEncode(rs("client_name")) %>
+            <% Else %>
+                -
+            <% End If %>
+            </td>
+        </tr>
+        <tr>
+            <th>案件</th>
+            <td>
+            <% If Not IsNull(rs("project_name")) And rs("project_name") <> "" Then %>
+                <%= HtmlEncode(rs("project_code")) %> : <%= HtmlEncode(rs("project_name")) %>
+            <% Else %>
+                -
+            <% End If %>
+            </td>
         </tr>
         <tr>
             <th>期限日</th>
@@ -159,6 +210,21 @@ End If
             <th>依頼内容</th>
             <td><%= NL2BR(HtmlEncode(SafeValue(rs("request_content"), "-"))) %></td>
         </tr>
+        <tr>
+            <th>最終更新者</th>
+            <td><%= HtmlEncode(SafeValue(rs("updated_by"), "-")) %></td>
+        </tr>
+        <% If Not IsNull(rs("folder_address")) And rs("folder_address") <> "" Then %>
+        <tr>
+            <th>フォルダアドレス</th>
+            <td>
+                <div style="display:flex;gap:8px;align-items:center;">
+                    <span id="folderAddressText"><%= HtmlEncode(rs("folder_address")) %></span>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="copyFolderAddress()" style="white-space:nowrap;">コピー</button>
+                </div>
+            </td>
+        </tr>
+        <% End If %>
     </table>
 </div>
 
@@ -168,38 +234,7 @@ End If
     <form method="post" action="request_response.asp">
         <input type="hidden" name="request_id" value="<%= requestId %>">
 
-        <div class="form-group">
-            <label>ステータス<span class="required">*</span></label>
-            <select name="status_id" class="form-control" required>
-                <%
-                Dim selectedStatusId
-                If Request.Form("status_id") <> "" Then
-                    selectedStatusId = SafeInt(Request.Form("status_id"), STATUS_NOT_STARTED)
-                Else
-                    selectedStatusId = rs("status_id")
-                End If
-                %>
-                <option value="<%= STATUS_NOT_STARTED %>" <% If selectedStatusId = STATUS_NOT_STARTED Then Response.Write " selected" End If %>>未着手</option>
-                <option value="<%= STATUS_IN_PROGRESS %>" <% If selectedStatusId = STATUS_IN_PROGRESS Then Response.Write " selected" End If %>>着手済</option>
-                <option value="<%= STATUS_COMPLETED %>" <% If selectedStatusId = STATUS_COMPLETED Then Response.Write " selected" End If %>>対応完了</option>
-                <option value="<%= STATUS_NOT_APPLICABLE %>" <% If selectedStatusId = STATUS_NOT_APPLICABLE Then Response.Write " selected" End If %>>対象外</option>
-            </select>
-        </div>
-
-        <div class="form-group">
-            <label>終了日</label>
-            <%
-            Dim respEndDate
-            If Request.Form("end_date") <> "" Then
-                respEndDate = Request.Form("end_date")
-            Else
-                respEndDate = FormatDateISO(rs("end_date"))
-            End If
-            %>
-            <input type="date" name="end_date" class="form-control" value="<%= respEndDate %>">
-            <small style="color: #666;">※対応完了の場合は必須</small>
-        </div>
-
+        <!-- 対応内容 -->
         <div class="form-group">
             <label>対応内容</label>
             <%
@@ -210,7 +245,28 @@ End If
                 respContent = rs("response_content") & ""
             End If
             %>
-            <textarea name="response_content" class="form-control" rows="5"><%= HtmlEncode(respContent) %></textarea>
+            <textarea name="response_content" id="response_content" class="form-control" rows="5" oninput="updateStatusPreview()"><%= HtmlEncode(respContent) %></textarea>
+        </div>
+
+        <!-- 終了日 -->
+        <div class="form-group">
+            <label>終了日</label>
+            <%
+            Dim respEndDate
+            If Request.Form("end_date") <> "" Then
+                respEndDate = Request.Form("end_date")
+            Else
+                respEndDate = FormatDateISO(rs("end_date"))
+            End If
+            %>
+            <input type="date" name="end_date" id="end_date" class="form-control" value="<%= respEndDate %>" onchange="updateStatusPreview()">
+        </div>
+
+        <!-- ステータス（自動判定・表示のみ） -->
+        <div class="form-group">
+            <label>ステータス（自動判定）</label>
+            <div id="statusPreview" style="padding:6px 0;font-weight:bold;"></div>
+            <small style="color:#666;">対応内容・終了日の入力状況により自動で決まります</small>
         </div>
 
         <div class="btn-group">
@@ -227,5 +283,70 @@ CloseDBConnection conn
         </div>
     </main>
     <script src="js/common.js"></script>
+    <script>
+    // ============================================================
+    // ステータス自動判定プレビュー
+    // 終了日・対応内容の入力状況からリアルタイムにステータスを表示
+    // ============================================================
+    function updateStatusPreview() {
+        var responseContent = document.getElementById('response_content').value.trim();
+        var endDate         = document.getElementById('end_date').value.trim();
+        var preview         = document.getElementById('statusPreview');
+
+        var label, color;
+        if (endDate !== '' && responseContent !== '') {
+            label = '対応終了';
+            color = '#27ae60';
+        } else if (responseContent !== '') {
+            label = '着手済';
+            color = '#2980b9';
+        } else {
+            label = '未着手';
+            color = '#7f8c8d';
+        }
+        preview.textContent = label;
+        preview.style.color = color;
+    }
+
+    // 初期表示
+    document.addEventListener('DOMContentLoaded', function() {
+        updateStatusPreview();
+    });
+
+    // フォルダアドレス コピー
+    function copyFolderAddress() {
+        var text = document.getElementById('folderAddressText').textContent.trim();
+        if (!text) return;
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(text).then(function() {
+                showCopyToast();
+            });
+        } else {
+            // フォールバック（HTTP環境など）
+            var tmp = document.createElement('textarea');
+            tmp.value = text;
+            tmp.style.position = 'fixed';
+            tmp.style.opacity = '0';
+            document.body.appendChild(tmp);
+            tmp.select();
+            document.execCommand('copy');
+            document.body.removeChild(tmp);
+            showCopyToast();
+        }
+    }
+
+    function showCopyToast() {
+        var toast = document.getElementById('copyToast');
+        if (!toast) {
+            toast = document.createElement('div');
+            toast.id = 'copyToast';
+            toast.textContent = 'コピーしました';
+            toast.style.cssText = 'position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:8px 20px;border-radius:4px;font-size:0.9rem;z-index:9999;';
+            document.body.appendChild(toast);
+        }
+        toast.style.display = 'block';
+        setTimeout(function() { toast.style.display = 'none'; }, 2000);
+    }
+    </script>
 </body>
 </html>

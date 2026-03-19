@@ -59,15 +59,25 @@ Function ParseCSVLine(line)
     ParseCSVLine = result
 End Function
 
-' 社員コードからIDを取得
-Function GetEmployeeIdByCode(conn, code)
-    Dim rsTemp, sqlTemp, id
+' 社員コードからIDと名前を取得（Employee DBへ接続）
+' 戻り値: employee_id（見つからない場合は0）
+' 引数 byRefName: 社員名を返す（参照渡し）
+Function GetEmployeeIdByCode(code, ByRef outName, ByRef outEmail)
+    Dim connEmp, rsTemp, sqlTemp, id
     id = 0
-    sqlTemp = "SELECT employee_id FROM IRAI.M_Employee WHERE employee_code = N'" & EscapeSQL(code) & "' AND is_active = 1"
-    Set rsTemp = conn.Execute(sqlTemp)
-    If Not rsTemp.EOF Then id = rsTemp("employee_id")
+    outName  = ""
+    outEmail = ""
+    Set connEmp = GetEmployeeDBConnection()
+    sqlTemp = "SELECT employee_id, employee_name, email FROM IRAI.M_Employee WHERE employee_code = N'" & EscapeSQL(code) & "' AND is_active = 1"
+    Set rsTemp = connEmp.Execute(sqlTemp)
+    If Not rsTemp.EOF Then
+        id       = rsTemp("employee_id")
+        outName  = rsTemp("employee_name") & ""
+        outEmail = rsTemp("email") & ""
+    End If
     rsTemp.Close
     Set rsTemp = Nothing
+    CloseDBConnection connEmp
     GetEmployeeIdByCode = id
 End Function
 
@@ -103,7 +113,7 @@ If Request.ServerVariables("REQUEST_METHOD") = "POST" Then
                 lineErrors = ""
 
                 If UBound(cols) >= 3 Then
-                    Dim clientCode, projectCode, clientId, projectId
+                    Dim clientCode, projectCode, clientId, projectId, importance, folderAddress
                     requesterCode = Trim(cols(0))
                     assigneeCode = Trim(cols(1))
                     requestTitle = Trim(cols(2))
@@ -111,30 +121,49 @@ If Request.ServerVariables("REQUEST_METHOD") = "POST" Then
                     requestContent = ""
                     clientCode = ""
                     projectCode = ""
+                    importance = "B"
+                    folderAddress = ""
                     If UBound(cols) >= 4 Then requestContent = Trim(cols(4))
                     If UBound(cols) >= 5 Then clientCode = Trim(cols(5))
                     If UBound(cols) >= 6 Then projectCode = Trim(cols(6))
+                    If UBound(cols) >= 7 Then importance = Trim(cols(7))
+                    If UBound(cols) >= 8 Then folderAddress = Trim(cols(8))
+                    ' 重要度の不正値はB（中）に補正
+                    If importance <> "A" And importance <> "B" And importance <> "C" Then importance = "B"
 
-                    requesterId = GetEmployeeIdByCode(conn, requesterCode)
-                    assigneeId = GetEmployeeIdByCode(conn, assigneeCode)
+                    Dim requesterName, assigneeName, requesterEmail, assigneeEmail
+                    requesterId = GetEmployeeIdByCode(requesterCode, requesterName, requesterEmail)
+                    assigneeId  = GetEmployeeIdByCode(assigneeCode,  assigneeName,  assigneeEmail)
 
-                    ' 取引先コードからIDを取得
+                    ' 取引先コードからIDと名称を取得（Client DBへ接続）
                     clientId = 0
+                    Dim clientName, projectName
+                    clientName  = ""
+                    projectName = ""
+                    Dim connClientImp
+                    Set connClientImp = GetClientDBConnection()
                     If clientCode <> "" Then
                         Dim rsClientLookup
-                        Set rsClientLookup = conn.Execute("SELECT client_id FROM IRAI.M_Client WHERE client_code = N'" & EscapeSQL(clientCode) & "' AND is_active = 1")
-                        If Not rsClientLookup.EOF Then clientId = rsClientLookup("client_id")
+                        Set rsClientLookup = connClientImp.Execute("SELECT client_id, client_name FROM IRAI.M_Client WHERE client_code = N'" & EscapeSQL(clientCode) & "' AND is_active = 1")
+                        If Not rsClientLookup.EOF Then
+                            clientId   = rsClientLookup("client_id")
+                            clientName = rsClientLookup("client_name") & ""
+                        End If
                         CloseRecordset rsClientLookup
                     End If
 
-                    ' 案件コードからIDを取得
+                    ' 案件コードからIDと名称を取得（Client DB）
                     projectId = 0
                     If projectCode <> "" Then
                         Dim rsProjectLookup
-                        Set rsProjectLookup = conn.Execute("SELECT project_id FROM IRAI.M_Project WHERE project_code = N'" & EscapeSQL(projectCode) & "' AND is_active = 1")
-                        If Not rsProjectLookup.EOF Then projectId = rsProjectLookup("project_id")
+                        Set rsProjectLookup = connClientImp.Execute("SELECT project_id, project_name FROM IRAI.M_Project WHERE project_code = N'" & EscapeSQL(projectCode) & "' AND is_active = 1")
+                        If Not rsProjectLookup.EOF Then
+                            projectId   = rsProjectLookup("project_id")
+                            projectName = rsProjectLookup("project_name") & ""
+                        End If
                         CloseRecordset rsProjectLookup
                     End If
+                    CloseDBConnection connClientImp
 
                     ' エラーチェック
                     If requesterId = 0 Then
@@ -170,8 +199,8 @@ If Request.ServerVariables("REQUEST_METHOD") = "POST" Then
                         errorCount = errorCount + 1
                         errorDetails = errorDetails & "行" & (j + 1) & ": " & lineErrors & vbCrLf
                     Else
-                        sql = "INSERT INTO IRAI.T_Request (requester_id, assignee_id, request_title, request_content, deadline_date, client_id, project_id, status_id) " & _
-                              "VALUES (" & requesterId & ", " & assigneeId & ", N'" & EscapeSQL(requestTitle) & "', N'" & EscapeSQL(requestContent) & "', '" & FormatDateForSQL(deadlineDate) & "', " & clientIdSQL & ", " & projectIdSQL & ", " & STATUS_NOT_STARTED & ")"
+                        sql = "INSERT INTO IRAI.T_Request (requester_id, assignee_id, requester_name, assignee_name, requester_email, assignee_email, request_title, request_content, deadline_date, importance, folder_address, client_id, client_code, client_name, project_id, project_code, project_name, status_id) " & _
+                              "VALUES (" & requesterId & ", " & assigneeId & ", N'" & EscapeSQL(requesterName) & "', N'" & EscapeSQL(assigneeName) & "', N'" & EscapeSQL(requesterEmail) & "', N'" & EscapeSQL(assigneeEmail) & "', N'" & EscapeSQL(requestTitle) & "', N'" & EscapeSQL(requestContent) & "', '" & FormatDateForSQL(deadlineDate) & "', '" & EscapeSQL(importance) & "', N'" & EscapeSQL(folderAddress) & "', " & clientIdSQL & ", N'" & EscapeSQL(clientCode) & "', N'" & EscapeSQL(clientName) & "', " & projectIdSQL & ", N'" & EscapeSQL(projectCode) & "', N'" & EscapeSQL(projectName) & "', " & STATUS_NOT_STARTED & ")"
 
                         On Error Resume Next
                         conn.Execute sql
@@ -257,7 +286,7 @@ End If
         </div>
         <div class="form-group">
             <label>CSVデータ<span class="required">*</span></label>
-            <textarea name="csv_data" id="csv_data" class="form-control" rows="10" placeholder="依頼元コード,依頼先コード,依頼件名,期限日,依頼内容,取引先コード,案件コード"><%= HtmlEncode(Request.Form("csv_data") & "") %></textarea>
+            <textarea name="csv_data" id="csv_data" class="form-control" rows="10" placeholder="依頼元コード,依頼先コード,依頼件名,期限日,依頼内容,取引先コード,案件コード,重要度,フォルダアドレス"><%= HtmlEncode(Request.Form("csv_data") & "") %></textarea>
         </div>
         <div class="btn-group">
             <button type="submit" class="btn btn-primary" onclick="return confirm('インポートを実行しますか？');">インポート実行</button>
