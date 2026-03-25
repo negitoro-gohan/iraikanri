@@ -13,16 +13,16 @@ Response.ContentType = "application/json; charset=UTF-8"
 ' ============================================
 
 Dim conn, rs, sql
-Dim action, clientId
+Dim action, clientCode
 
-action = Trim(Request.QueryString("action") & "")
-clientId = SafeInt(Request.QueryString("client_id"), 0)
+action     = Trim(Request.QueryString("action") & "")
+clientCode = Trim(Request.QueryString("client_code") & "")
 
 Set conn = GetClientDBConnection()
 
 If action = "clients" Then
-    ' 取引先一覧を返す
-    sql = "SELECT client_id, client_code, client_name FROM IRAI.M_Client WHERE is_active = 1 ORDER BY client_code"
+    ' 取引先一覧を返す（code / name のみ）
+    sql = "SELECT client_code, client_name FROM IRAI.M_Client WHERE is_active = 1 ORDER BY client_code"
     Set rs = conn.Execute(sql)
 
     Response.Write "["
@@ -31,17 +31,16 @@ If action = "clients" Then
     Do While Not rs.EOF
         If Not first Then Response.Write ","
         first = False
-        Response.Write "{""id"":" & rs("client_id") & ","
-        Response.Write """code"":""" & EscapeJSON(rs("client_code") & "") & ""","
+        Response.Write "{""code"":""" & EscapeJSON(rs("client_code") & "") & ""","
         Response.Write """name"":""" & EscapeJSON(rs("client_name") & "") & """}"
         rs.MoveNext
     Loop
     Response.Write "]"
     CloseRecordset rs
 
-ElseIf action = "projects" And clientId > 0 Then
-    ' 指定した取引先の案件一覧を返す
-    sql = "SELECT project_id, project_code, project_name FROM IRAI.M_Project WHERE client_id = " & clientId & " AND is_active = 1 ORDER BY project_code"
+ElseIf action = "projects" And clientCode <> "" Then
+    ' 指定した取引先コードの案件一覧を返す（code / name のみ）
+    sql = "SELECT project_code, project_name FROM IRAI.M_Project WHERE client_code = N'" & EscapeSQL(clientCode) & "' AND is_active = 1 ORDER BY project_code"
     Set rs = conn.Execute(sql)
 
     Response.Write "["
@@ -49,8 +48,7 @@ ElseIf action = "projects" And clientId > 0 Then
     Do While Not rs.EOF
         If Not first Then Response.Write ","
         first = False
-        Response.Write "{""id"":" & rs("project_id") & ","
-        Response.Write """code"":""" & EscapeJSON(rs("project_code") & "") & ""","
+        Response.Write "{""code"":""" & EscapeJSON(rs("project_code") & "") & ""","
         Response.Write """name"":""" & EscapeJSON(rs("project_name") & "") & """}"
         rs.MoveNext
     Loop
@@ -58,35 +56,35 @@ ElseIf action = "projects" And clientId > 0 Then
     CloseRecordset rs
 
 ElseIf action = "lookup_client" Then
-    ' 取引先コードからID・名称を返す（コード入力のonblur用）
+    ' 取引先コードから名称を返す（コード入力のonblur用）
     Dim lookupClientCode
     lookupClientCode = Trim(Request.QueryString("code") & "")
     If lookupClientCode = "" Then
         Response.Write "{""found"":false}"
     Else
-        sql = "SELECT client_id, client_name FROM IRAI.M_Client WHERE client_code = N'" & EscapeSQL(lookupClientCode) & "' AND is_active = 1"
+        sql = "SELECT client_name FROM IRAI.M_Client WHERE client_code = N'" & EscapeSQL(lookupClientCode) & "' AND is_active = 1"
         Set rs = conn.Execute(sql)
         If rs.EOF Then
             Response.Write "{""found"":false}"
         Else
-            Response.Write "{""found"":true,""id"":" & rs("client_id") & ",""name"":""" & EscapeJSON(rs("client_name") & "") & """}"
+            Response.Write "{""found"":true,""name"":""" & EscapeJSON(rs("client_name") & "") & """}"
         End If
         CloseRecordset rs
     End If
 
 ElseIf action = "lookup_project" Then
-    ' 案件コードからID・名称を返す（コード入力のonblur用）
+    ' 案件コードから名称を返す（コード入力のonblur用）
     Dim lookupProjectCode
     lookupProjectCode = Trim(Request.QueryString("code") & "")
     If lookupProjectCode = "" Then
         Response.Write "{""found"":false}"
     Else
-        sql = "SELECT project_id, project_name FROM IRAI.M_Project WHERE project_code = N'" & EscapeSQL(lookupProjectCode) & "' AND is_active = 1"
+        sql = "SELECT project_name FROM IRAI.M_Project WHERE project_code = N'" & EscapeSQL(lookupProjectCode) & "' AND is_active = 1"
         Set rs = conn.Execute(sql)
         If rs.EOF Then
             Response.Write "{""found"":false}"
         Else
-            Response.Write "{""found"":true,""id"":" & rs("project_id") & ",""name"":""" & EscapeJSON(rs("project_name") & "") & """}"
+            Response.Write "{""found"":true,""name"":""" & EscapeJSON(rs("project_name") & "") & """}"
         End If
         CloseRecordset rs
     End If

@@ -87,34 +87,12 @@ End Select
 If filterStatus > 0 Then
     whereClause = whereClause & " AND r.status_id = " & filterStatus
 End If
-' 社員コードフィルタ: Employee DBから employee_id を先に取得してWHEREに埋め込む
+' 社員コードフィルタ: T_Requestのrequester_code/assignee_codeを直接比較
 If filterRequester <> "" Then
-    Dim connEmpFilter, rsEmpFilter, filterRequesterId
-    filterRequesterId = 0
-    Set connEmpFilter = GetEmployeeDBConnection()
-    Set rsEmpFilter = connEmpFilter.Execute("SELECT employee_id FROM IRAI.M_Employee WHERE employee_code = N'" & EscapeSQL(filterRequester) & "' AND is_active = 1")
-    If Not rsEmpFilter.EOF Then filterRequesterId = CLng(rsEmpFilter("employee_id"))
-    CloseRecordset rsEmpFilter
-    CloseDBConnection connEmpFilter
-    If filterRequesterId > 0 Then
-        whereClause = whereClause & " AND r.requester_id = " & filterRequesterId
-    Else
-        whereClause = whereClause & " AND 1 = 0" ' 該当なし → 0件
-    End If
+    whereClause = whereClause & " AND r.requester_code = N'" & EscapeSQL(filterRequester) & "'"
 End If
 If filterAssignee <> "" Then
-    Dim connEmpFilter2, rsEmpFilter2, filterAssigneeId
-    filterAssigneeId = 0
-    Set connEmpFilter2 = GetEmployeeDBConnection()
-    Set rsEmpFilter2 = connEmpFilter2.Execute("SELECT employee_id FROM IRAI.M_Employee WHERE employee_code = N'" & EscapeSQL(filterAssignee) & "' AND is_active = 1")
-    If Not rsEmpFilter2.EOF Then filterAssigneeId = CLng(rsEmpFilter2("employee_id"))
-    CloseRecordset rsEmpFilter2
-    CloseDBConnection connEmpFilter2
-    If filterAssigneeId > 0 Then
-        whereClause = whereClause & " AND r.assignee_id = " & filterAssigneeId
-    Else
-        whereClause = whereClause & " AND 1 = 0" ' 該当なし → 0件
-    End If
+    whereClause = whereClause & " AND r.assignee_code = N'" & EscapeSQL(filterAssignee) & "'"
 End If
 If filterKeyword <> "" Then
     whereClause = whereClause & " AND (r.request_title LIKE N'%" & EscapeSQL(filterKeyword) & "%' OR r.request_content LIKE N'%" & EscapeSQL(filterKeyword) & "%')"
@@ -126,25 +104,14 @@ If filterDeadlineTo <> "" And IsDate(filterDeadlineTo) Then
     whereClause = whereClause & " AND r.deadline_date <= '" & EscapeSQL(filterDeadlineTo) & "'"
 End If
 If filterClientCode <> "" Then
-    whereClause = whereClause & " AND r.client_id = " & SafeInt(filterClientCode, 0)
+    whereClause = whereClause & " AND r.client_code = N'" & EscapeSQL(filterClientCode) & "'"
 End If
 If filterProjectCode <> "" Then
-    whereClause = whereClause & " AND r.project_id = " & SafeInt(filterProjectCode, 0)
+    whereClause = whereClause & " AND r.project_code = N'" & EscapeSQL(filterProjectCode) & "'"
 End If
 ' my_assignee=1: ログインユーザーが依頼先の依頼のみ表示
 If filterMyAssignee = "1" Then
-    Dim connEmpMyMe, rsEmpMyMe, myAssigneeId
-    myAssigneeId = 0
-    Set connEmpMyMe = GetEmployeeDBConnection()
-    Set rsEmpMyMe = connEmpMyMe.Execute("SELECT employee_id FROM IRAI.M_Employee WHERE employee_code = N'" & EscapeSQL(GetCurrentUser()) & "' AND is_active = 1")
-    If Not rsEmpMyMe.EOF Then myAssigneeId = CLng(rsEmpMyMe("employee_id"))
-    CloseRecordset rsEmpMyMe
-    CloseDBConnection connEmpMyMe
-    If myAssigneeId > 0 Then
-        whereClause = whereClause & " AND r.assignee_id = " & myAssigneeId
-    Else
-        whereClause = whereClause & " AND 1 = 0" ' 社員マスターに未登録のため0件
-    End If
+    whereClause = whereClause & " AND r.assignee_code = N'" & EscapeSQL(GetCurrentUser()) & "'"
 End If
 
 ' 総件数取得
@@ -164,7 +131,7 @@ startRecord = (currentPage - 1) * ITEMS_PER_PAGE
 ' データ取得（ページネーション対応）
 sql = "SELECT * FROM (" & _
       "SELECT r.request_id, r.request_title, r.deadline_date, r.status_id, r.created_at, " & _
-      "r.client_id, r.project_id, r.client_code, r.client_name, r.project_code, r.project_name, " & _
+      "r.client_code, r.client_name, r.project_code, r.project_name, " & _
       "r.requester_name, r.assignee_name, " & _
       "ROW_NUMBER() OVER (ORDER BY " & sortColumnSQL & " " & sortDir & ") AS RowNum " & _
       "FROM IRAI.T_Request r " & _
@@ -173,17 +140,15 @@ sql = "SELECT * FROM (" & _
 Set rs = conn.Execute(sql)
 
 ' 取引先一覧取得（フィルタ用、Client DBへ接続）
-Dim rsClients, clientIds(), clientCodes(), clientNames(), clientCount
+Dim rsClients, clientCodes(), clientNames(), clientCount
 Dim connClientList
 Set connClientList = GetClientDBConnection()
-sql = "SELECT client_id, client_code, client_name FROM IRAI.M_Client WHERE is_active = 1 ORDER BY client_code"
+sql = "SELECT client_code, client_name FROM IRAI.M_Client WHERE is_active = 1 ORDER BY client_code"
 Set rsClients = connClientList.Execute(sql)
 clientCount = 0
 Do While Not rsClients.EOF
-    ReDim Preserve clientIds(clientCount)
     ReDim Preserve clientCodes(clientCount)
     ReDim Preserve clientNames(clientCount)
-    clientIds(clientCount) = rsClients("client_id")
     clientCodes(clientCount) = rsClients("client_code") & ""
     clientNames(clientCount) = rsClients("client_name") & ""
     clientCount = clientCount + 1
@@ -212,9 +177,6 @@ CloseDBConnection connClientList
                     <li><a href="index.asp">ホーム</a></li>
                     <li><a href="request_list.asp">依頼一覧</a></li>
                     <li><a href="request_new.asp">新規登録</a></li>
-                    <li><a href="master_employee.asp">社員管理</a></li>
-                    <li><a href="master_client.asp">取引先管理</a></li>
-                    <li><a href="master_project.asp">案件管理</a></li>
                     <li><a href="export.asp">エクスポート</a></li>
                     <li><a href="import.asp">インポート</a></li>
                 </ul>
@@ -309,17 +271,17 @@ End If
 
     <div class="filter-group">
         <label>取引先</label>
-        <select name="client_code" id="filter_client_id" class="form-control" style="width:200px;" onchange="loadFilterProjects();">
+        <select name="client_code" id="filter_client_code" class="form-control" style="width:200px;" onchange="loadFilterProjects();">
             <option value="">-- すべて --</option>
             <% Dim fci : For fci = 0 To clientCount - 1 %>
-            <option value="<%= clientIds(fci) %>" <% If CStr(filterClientCode) = CStr(clientIds(fci)) Then %>selected<% End If %>><%= HtmlEncode(clientCodes(fci)) %> : <%= HtmlEncode(clientNames(fci)) %></option>
+            <option value="<%= HtmlEncode(clientCodes(fci)) %>" <% If filterClientCode = clientCodes(fci) Then %>selected<% End If %>><%= HtmlEncode(clientCodes(fci)) %> : <%= HtmlEncode(clientNames(fci)) %></option>
             <% Next %>
         </select>
     </div>
 
     <div class="filter-group">
         <label>案件</label>
-        <select name="project_code" id="filter_project_id" class="form-control" style="width:200px;">
+        <select name="project_code" id="filter_project_code" class="form-control" style="width:200px;">
             <option value="">-- すべて --</option>
         </select>
     </div>
@@ -512,27 +474,27 @@ CloseDBConnection conn
     };
 
     // 取引先選択時に案件一覧を読み込む（フィルタ用）
-    function loadFilterProjects(selectedProjectId) {
-        var clientId = document.getElementById('filter_client_id').value;
-        var projectSelect = document.getElementById('filter_project_id');
+    function loadFilterProjects(selectedProjectCode) {
+        var clientCode = document.getElementById('filter_client_code').value;
+        var projectSelect = document.getElementById('filter_project_code');
 
         projectSelect.innerHTML = '<option value="">-- すべて --</option>';
 
-        if (!clientId) {
+        if (!clientCode) {
             return;
         }
 
         var xhr = new XMLHttpRequest();
-        xhr.open('GET', 'api_project_lookup.asp?action=projects&client_id=' + clientId, true);
+        xhr.open('GET', 'api_project_lookup.asp?action=projects&client_code=' + encodeURIComponent(clientCode), true);
         xhr.onreadystatechange = function() {
             if (xhr.readyState === 4 && xhr.status === 200) {
                 try {
                     var projects = JSON.parse(xhr.responseText);
                     for (var i = 0; i < projects.length; i++) {
                         var opt = document.createElement('option');
-                        opt.value = projects[i].id;
+                        opt.value = projects[i].code;
                         opt.textContent = projects[i].code + ' : ' + projects[i].name;
-                        if (selectedProjectId && projects[i].id == selectedProjectId) {
+                        if (selectedProjectCode && projects[i].code === selectedProjectCode) {
                             opt.selected = true;
                         }
                         projectSelect.appendChild(opt);
@@ -556,9 +518,9 @@ CloseDBConnection conn
             lookupFilterEmployee('assignee');
         }
         // 取引先が選択されていれば案件を読み込む
-        var clientId = document.getElementById('filter_client_id').value;
-        if (clientId) {
-            loadFilterProjects(<%= SafeInt(filterProjectCode, 0) %>);
+        var clientCode = document.getElementById('filter_client_code').value;
+        if (clientCode) {
+            loadFilterProjects('<%= EscapeSQL(filterProjectCode) %>');
         }
     });
     </script>

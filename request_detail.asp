@@ -43,19 +43,10 @@ Dim requesterEmail, assigneeEmail
 requesterEmail = rs("requester_email") & ""
 assigneeEmail  = rs("assignee_email")  & ""
 
-' 社員コードをEmployee DBから取得
+' 社員コードをT_Requestから直接取得
 Dim requesterCode, assigneeCode
-requesterCode = ""
-assigneeCode  = ""
-Dim connEmpDetail, rsEmpDetail
-Set connEmpDetail = GetEmployeeDBConnection()
-Set rsEmpDetail = connEmpDetail.Execute("SELECT employee_code FROM IRAI.M_Employee WHERE employee_id = " & rs("requester_id"))
-If Not rsEmpDetail.EOF Then requesterCode = rsEmpDetail("employee_code") & ""
-CloseRecordset rsEmpDetail
-Set rsEmpDetail = connEmpDetail.Execute("SELECT employee_code FROM IRAI.M_Employee WHERE employee_id = " & rs("assignee_id"))
-If Not rsEmpDetail.EOF Then assigneeCode = rsEmpDetail("employee_code") & ""
-CloseRecordset rsEmpDetail
-CloseDBConnection connEmpDetail
+requesterCode = rs("requester_code") & ""
+assigneeCode  = rs("assignee_code")  & ""
 
 Dim dlClass
 dlClass = GetDeadlineClass(rs("deadline_date"), rs("status_id"))

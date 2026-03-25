@@ -14,7 +14,7 @@ Response.ContentType = "application/json; charset=UTF-8"
 ' パラメータ:
 '   keyword : 社員コード or 社員名で部分一致検索
 ' 戻り値: JSON配列
-'   [{"employee_id":1, "employee_code":"EMP001", "employee_name":"山田太郎", "email":"..."}]
+'   [{"employee_code":"EMP001", "employee_name":"山田太郎", "email":"..."}]
 ' ============================================
 
 Dim keyword
@@ -26,12 +26,12 @@ Set conn = GetEmployeeDBConnection()
 ' 社員コードまたは社員名で部分一致検索（有効な社員のみ、最大50件）
 ' キーワードが空の場合は全件返す
 If keyword = "" Then
-    sql = "SELECT TOP 50 employee_id, employee_code, employee_name, email " & _
+    sql = "SELECT TOP 50 employee_code, employee_name, email " & _
           "FROM IRAI.M_Employee " & _
           "WHERE is_active = 1 " & _
           "ORDER BY employee_code"
 Else
-    sql = "SELECT TOP 50 employee_id, employee_code, employee_name, email " & _
+    sql = "SELECT TOP 50 employee_code, employee_name, email " & _
           "FROM IRAI.M_Employee " & _
           "WHERE is_active = 1 " & _
           "AND (employee_code LIKE N'%" & EscapeSQL(keyword) & "%' " & _
@@ -65,7 +65,6 @@ Do While Not rs.EOF
     empEmail = Replace(empEmail, """", "\""")
 
     jsonResult = jsonResult & "{" & _
-        """employee_id"":" & rs("employee_id") & "," & _
         """employee_code"":""" & empCode & """," & _
         """employee_name"":""" & empName & """," & _
         """email"":""" & empEmail & """" & _

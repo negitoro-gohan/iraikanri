@@ -30,9 +30,9 @@ End Function
 ' ダウンロード処理
 If Request.QueryString("action") = "download" Then
     Dim filterStatus, filterRequester, filterAssignee
-    filterStatus = SafeInt(Request.QueryString("status"), 0)
-    filterRequester = SafeInt(Request.QueryString("requester"), 0)
-    filterAssignee = SafeInt(Request.QueryString("assignee"), 0)
+    filterStatus   = SafeInt(Request.QueryString("status"), 0)
+    filterRequester = Trim(Request.QueryString("requester") & "")
+    filterAssignee  = Trim(Request.QueryString("assignee")  & "")
 
     Set conn = GetDBConnection()
 
@@ -42,14 +42,14 @@ If Request.QueryString("action") = "download" Then
     If filterStatus > 0 Then
         whereClause = whereClause & " AND r.status_id = " & filterStatus
     End If
-    If filterRequester > 0 Then
-        whereClause = whereClause & " AND r.requester_id = " & filterRequester
+    If filterRequester <> "" Then
+        whereClause = whereClause & " AND r.requester_code = N'" & EscapeSQL(filterRequester) & "'"
     End If
-    If filterAssignee > 0 Then
-        whereClause = whereClause & " AND r.assignee_id = " & filterAssignee
+    If filterAssignee <> "" Then
+        whereClause = whereClause & " AND r.assignee_code = N'" & EscapeSQL(filterAssignee) & "'"
     End If
 
-    sql = "SELECT r.request_id, r.request_title, r.requester_name, r.assignee_name, " & _
+    sql = "SELECT r.request_id, r.request_title, r.requester_code, r.requester_name, r.assignee_code, r.assignee_name, " & _
           "r.client_code, r.client_name, r.project_code, r.project_name, " & _
           "r.deadline_date, s.status_name, r.request_content, r.response_content, " & _
           "r.end_date, r.created_at, r.updated_at " & _
@@ -65,12 +65,14 @@ If Request.QueryString("action") = "download" Then
 
     Response.BinaryWrite ChrB(&HEF) & ChrB(&HBB) & ChrB(&HBF)
 
-    Response.Write "依頼ID,依頼件名,依頼元,依頼先,取引先コード,取引先名,案件コード,案件名,期限日,ステータス,依頼内容,対応内容,終了日,登録日時,更新日時" & vbCrLf
+    Response.Write "依頼ID,依頼件名,依頼元コード,依頼元,依頼先コード,依頼先,取引先コード,取引先名,案件コード,案件名,期限日,ステータス,依頼内容,対応内容,終了日,登録日時,更新日時" & vbCrLf
 
     Do While Not rs.EOF
         Response.Write EscapeCSV(rs("request_id")) & ","
         Response.Write EscapeCSV(rs("request_title")) & ","
+        Response.Write EscapeCSV(rs("requester_code")) & ","
         Response.Write EscapeCSV(rs("requester_name")) & ","
+        Response.Write EscapeCSV(rs("assignee_code")) & ","
         Response.Write EscapeCSV(rs("assignee_name")) & ","
         Response.Write EscapeCSV(rs("client_code")) & ","
         Response.Write EscapeCSV(rs("client_name")) & ","
@@ -96,17 +98,17 @@ Response.ContentType = "text/html; charset=UTF-8"
 
 Set conn = GetDBConnection()
 
+' 社員一覧をEmployee DBから取得（フィルタ用）
 Dim rsEmployee, connEmpExport
 Set connEmpExport = GetEmployeeDBConnection()
-Set rsEmployee = connEmpExport.Execute("SELECT employee_id, employee_name FROM IRAI.M_Employee WHERE is_active = 1 ORDER BY employee_name")
+Set rsEmployee = connEmpExport.Execute("SELECT employee_code, employee_name FROM IRAI.M_Employee WHERE is_active = 1 ORDER BY employee_code")
 
-' 社員リストを配列に格納
-Dim empIds(), empNames(), empCount
+Dim empCodes(), empNames(), empCount
 empCount = 0
 Do While Not rsEmployee.EOF
-    ReDim Preserve empIds(empCount)
+    ReDim Preserve empCodes(empCount)
     ReDim Preserve empNames(empCount)
-    empIds(empCount) = rsEmployee("employee_id")
+    empCodes(empCount) = rsEmployee("employee_code") & ""
     empNames(empCount) = rsEmployee("employee_name") & ""
     empCount = empCount + 1
     rsEmployee.MoveNext
@@ -131,9 +133,6 @@ CloseDBConnection connEmpExport
                     <li><a href="index.asp">ホーム</a></li>
                     <li><a href="request_list.asp">依頼一覧</a></li>
                     <li><a href="request_new.asp">新規登録</a></li>
-                    <li><a href="master_employee.asp">社員管理</a></li>
-                    <li><a href="master_client.asp">取引先管理</a></li>
-                    <li><a href="master_project.asp">案件管理</a></li>
                     <li><a href="export.asp">エクスポート</a></li>
                     <li><a href="import.asp">インポート</a></li>
                 </ul>
@@ -167,9 +166,9 @@ CloseDBConnection connEmpExport
         <div class="form-group">
             <label>依頼元</label>
             <select name="requester" class="form-control">
-                <option value="0">-- すべて --</option>
+                <option value="">-- すべて --</option>
                 <% Dim ei : For ei = 0 To empCount - 1 %>
-                <option value="<%= empIds(ei) %>"><%= HtmlEncode(empNames(ei)) %></option>
+                <option value="<%= HtmlEncode(empCodes(ei)) %>"><%= HtmlEncode(empCodes(ei)) %> : <%= HtmlEncode(empNames(ei)) %></option>
                 <% Next %>
             </select>
         </div>
@@ -177,9 +176,9 @@ CloseDBConnection connEmpExport
         <div class="form-group">
             <label>依頼先</label>
             <select name="assignee" class="form-control">
-                <option value="0">-- すべて --</option>
+                <option value="">-- すべて --</option>
                 <% Dim ej : For ej = 0 To empCount - 1 %>
-                <option value="<%= empIds(ej) %>"><%= HtmlEncode(empNames(ej)) %></option>
+                <option value="<%= HtmlEncode(empCodes(ej)) %>"><%= HtmlEncode(empCodes(ej)) %> : <%= HtmlEncode(empNames(ej)) %></option>
                 <% Next %>
             </select>
         </div>

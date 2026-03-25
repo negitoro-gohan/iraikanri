@@ -16,27 +16,19 @@ Response.ContentType = "text/html; charset=UTF-8"
 
 Dim conn, rs, sql
 Dim countOverdue, countSoon, countInProgress, countTotal
-Dim currentUser, myEmployeeId
+Dim currentUser
 
 Set conn = GetDBConnection()
 
-' ログインユーザーの employee_id を取得（Employee DBへ接続）
-' employee_code = ドメインユーザー名（DOMAIN\ 除去後）で照合する
+' ログインユーザーの社員コードを取得（DOMAIN\ 除去後のユーザー名）
 currentUser = GetCurrentUser()
-myEmployeeId = 0
-Dim connEmpMe, rsEmpMe
-Set connEmpMe = GetEmployeeDBConnection()
-Set rsEmpMe = connEmpMe.Execute("SELECT employee_id FROM IRAI.M_Employee WHERE employee_code = N'" & EscapeSQL(currentUser) & "' AND is_active = 1")
-If Not rsEmpMe.EOF Then myEmployeeId = CLng(rsEmpMe("employee_id"))
-CloseRecordset rsEmpMe
-CloseDBConnection connEmpMe
 
-' ユーザーフィルタ（依頼先 = ログインユーザー）
+' ユーザーフィルタ（依頼先 = ログインユーザーの社員コード）
 Dim userFilter
-If myEmployeeId > 0 Then
-    userFilter = "is_deleted = 0 AND assignee_id = " & myEmployeeId
+If currentUser <> "" Then
+    userFilter = "is_deleted = 0 AND assignee_code = N'" & EscapeSQL(currentUser) & "'"
 Else
-    userFilter = "is_deleted = 0 AND 1 = 0" ' 社員マスターに未登録のため0件扱い
+    userFilter = "is_deleted = 0 AND 1 = 0" ' ユーザー未取得のため0件扱い
 End If
 
 ' 期限切れ件数（未完了・自分が依頼先）
@@ -82,9 +74,6 @@ CloseRecordset rs
                     <li><a href="index.asp">ホーム</a></li>
                     <li><a href="request_list.asp">依頼一覧</a></li>
                     <li><a href="request_new.asp">新規登録</a></li>
-                    <li><a href="master_employee.asp">社員管理</a></li>
-                    <li><a href="master_client.asp">取引先管理</a></li>
-                    <li><a href="master_project.asp">案件管理</a></li>
                     <li><a href="export.asp">エクスポート</a></li>
                     <li><a href="import.asp">インポート</a></li>
                 </ul>
@@ -97,8 +86,8 @@ CloseRecordset rs
 
 <h2 class="page-title">ダッシュボード <small style="font-size:0.6em;font-weight:normal;color:#666;">（<%= HtmlEncode(currentUser) %> の依頼）</small></h2>
 
-<% If myEmployeeId = 0 Then %>
-<div class="message message-warning">社員マスターに login_name が設定されていないため、件数を表示できません。管理者に連絡してください。</div>
+<% If currentUser = "" Then %>
+<div class="message message-warning">ログインユーザーが取得できないため、件数を表示できません。管理者に連絡してください。</div>
 <% End If %>
 
 <!-- サマリーカード -->

@@ -31,7 +31,7 @@ Set conn = GetDBConnection()
 
 ' POST処理（更新実行）
 If Request.ServerVariables("REQUEST_METHOD") = "POST" Then
-    Dim requesterId, assigneeId, requestTitle, requestContent, deadlineDate, importance, folderAddress
+    Dim requesterFound, assigneeFound, requestTitle, requestContent, deadlineDate, importance, folderAddress
     Dim requesterCode, assigneeCode, clientCode, projectCode
 
     requesterCode  = Trim(Request.Form("requester_code")  & "")
@@ -46,9 +46,9 @@ If Request.ServerVariables("REQUEST_METHOD") = "POST" Then
     ' 不正値はデフォルトのB（中）に補正
     If importance <> "A" And importance <> "B" And importance <> "C" Then importance = "B"
 
-    ' 社員コードからIDと名前を逆引き（Employee DBへ接続）
-    requesterId = 0
-    assigneeId  = 0
+    ' 社員コードから名前を取得（Employee DBへ接続）
+    requesterFound = False
+    assigneeFound  = False
     Dim requesterName, assigneeName
     requesterName = ""
     assigneeName  = ""
@@ -56,30 +56,27 @@ If Request.ServerVariables("REQUEST_METHOD") = "POST" Then
     Set connEmp = GetEmployeeDBConnection()
     If requesterCode <> "" Then
         Dim rsReqLookup
-        sql = "SELECT employee_id, employee_name FROM IRAI.M_Employee WHERE employee_code = N'" & EscapeSQL(requesterCode) & "' AND is_active = 1"
+        sql = "SELECT employee_name FROM IRAI.M_Employee WHERE employee_code = N'" & EscapeSQL(requesterCode) & "' AND is_active = 1"
         Set rsReqLookup = connEmp.Execute(sql)
         If Not rsReqLookup.EOF Then
-            requesterId   = CLng(rsReqLookup("employee_id"))
-            requesterName = rsReqLookup("employee_name") & ""
+            requesterFound = True
+            requesterName  = rsReqLookup("employee_name") & ""
         End If
         CloseRecordset rsReqLookup
     End If
     If assigneeCode <> "" Then
         Dim rsAsgLookup
-        sql = "SELECT employee_id, employee_name FROM IRAI.M_Employee WHERE employee_code = N'" & EscapeSQL(assigneeCode) & "' AND is_active = 1"
+        sql = "SELECT employee_name FROM IRAI.M_Employee WHERE employee_code = N'" & EscapeSQL(assigneeCode) & "' AND is_active = 1"
         Set rsAsgLookup = connEmp.Execute(sql)
         If Not rsAsgLookup.EOF Then
-            assigneeId   = CLng(rsAsgLookup("employee_id"))
-            assigneeName = rsAsgLookup("employee_name") & ""
+            assigneeFound = True
+            assigneeName  = rsAsgLookup("employee_name") & ""
         End If
         CloseRecordset rsAsgLookup
     End If
     CloseDBConnection connEmp
 
-    ' 取引先コードからIDと名称を逆引き（Client DBへ接続）
-    Dim clientId, projectId
-    clientId = 0
-    projectId = 0
+    ' 取引先コードから名称を取得（Client DBへ接続）
     Dim clientName, projectName
     clientName  = ""
     projectName = ""
@@ -87,22 +84,16 @@ If Request.ServerVariables("REQUEST_METHOD") = "POST" Then
     Set connClient = GetClientDBConnection()
     If clientCode <> "" Then
         Dim rsClientLookup
-        sql = "SELECT client_id, client_name FROM IRAI.M_Client WHERE client_code = N'" & EscapeSQL(clientCode) & "' AND is_active = 1"
+        sql = "SELECT client_name FROM IRAI.M_Client WHERE client_code = N'" & EscapeSQL(clientCode) & "' AND is_active = 1"
         Set rsClientLookup = connClient.Execute(sql)
-        If Not rsClientLookup.EOF Then
-            clientId   = CLng(rsClientLookup("client_id"))
-            clientName = rsClientLookup("client_name") & ""
-        End If
+        If Not rsClientLookup.EOF Then clientName = rsClientLookup("client_name") & ""
         CloseRecordset rsClientLookup
     End If
     If projectCode <> "" Then
         Dim rsProjectLookup
-        sql = "SELECT project_id, project_name FROM IRAI.M_Project WHERE project_code = N'" & EscapeSQL(projectCode) & "' AND is_active = 1"
+        sql = "SELECT project_name FROM IRAI.M_Project WHERE project_code = N'" & EscapeSQL(projectCode) & "' AND is_active = 1"
         Set rsProjectLookup = connClient.Execute(sql)
-        If Not rsProjectLookup.EOF Then
-            projectId   = CLng(rsProjectLookup("project_id"))
-            projectName = rsProjectLookup("project_name") & ""
-        End If
+        If Not rsProjectLookup.EOF Then projectName = rsProjectLookup("project_name") & ""
         CloseRecordset rsProjectLookup
     End If
     CloseDBConnection connClient
@@ -110,11 +101,11 @@ If Request.ServerVariables("REQUEST_METHOD") = "POST" Then
     ' 入力チェック
     If requesterCode = "" Then
         errorMsg = "依頼元の社員コードを入力してください。"
-    ElseIf requesterId = 0 Then
+    ElseIf Not requesterFound Then
         errorMsg = "依頼元の社員コードが見つかりません。"
     ElseIf assigneeCode = "" Then
         errorMsg = "依頼先の社員コードを入力してください。"
-    ElseIf assigneeId = 0 Then
+    ElseIf Not assigneeFound Then
         errorMsg = "依頼先の社員コードが見つかりません。"
     ElseIf requestTitle = "" Then
         errorMsg = "依頼件名を入力してください。"
@@ -127,15 +118,10 @@ If Request.ServerVariables("REQUEST_METHOD") = "POST" Then
         Dim domainUser
         domainUser = GetCurrentUser()
 
-        ' client_id, project_id が0の場合はNULLとして扱う
-        Dim clientIdSQL, projectIdSQL
-        If clientId > 0 Then clientIdSQL = CStr(clientId) Else clientIdSQL = "NULL"
-        If projectId > 0 Then projectIdSQL = CStr(projectId) Else projectIdSQL = "NULL"
-
         ' 更新処理（社員名・取引先・案件・重要度・フォルダアドレスも一緒に更新）
         sql = "UPDATE IRAI.T_Request SET " & _
-              "requester_id = " & requesterId & ", " & _
-              "assignee_id = " & assigneeId & ", " & _
+              "requester_code = N'" & EscapeSQL(requesterCode) & "', " & _
+              "assignee_code = N'" & EscapeSQL(assigneeCode) & "', " & _
               "requester_name = N'" & EscapeSQL(requesterName) & "', " & _
               "assignee_name = N'" & EscapeSQL(assigneeName) & "', " & _
               "request_title = N'" & EscapeSQL(requestTitle) & "', " & _
@@ -143,10 +129,8 @@ If Request.ServerVariables("REQUEST_METHOD") = "POST" Then
               "deadline_date = '" & deadlineDate & "', " & _
               "importance = '" & EscapeSQL(importance) & "', " & _
               "folder_address = N'" & EscapeSQL(folderAddress) & "', " & _
-              "client_id = " & clientIdSQL & ", " & _
               "client_code = N'" & EscapeSQL(clientCode) & "', " & _
               "client_name = N'" & EscapeSQL(clientName) & "', " & _
-              "project_id = " & projectIdSQL & ", " & _
               "project_code = N'" & EscapeSQL(projectCode) & "', " & _
               "project_name = N'" & EscapeSQL(projectName) & "', " & _
               "updated_by = N'" & EscapeSQL(domainUser) & "', " & _
@@ -179,18 +163,10 @@ If rs.EOF Then
     Response.End
 End If
 
-' 現在の依頼元・依頼先の社員コードを取得（Employee DBへ接続）
+' 依頼元・依頼先の社員コードをT_Requestから直接取得
 Dim requesterEmployeeCode, assigneeEmployeeCode
-Dim rsEmpReq, rsEmpAsg
-Dim connEmpEdit
-Set connEmpEdit = GetEmployeeDBConnection()
-Set rsEmpReq = connEmpEdit.Execute("SELECT employee_code FROM IRAI.M_Employee WHERE employee_id = " & rs("requester_id"))
-If Not rsEmpReq.EOF Then requesterEmployeeCode = rsEmpReq("employee_code") & ""
-CloseRecordset rsEmpReq
-Set rsEmpAsg = connEmpEdit.Execute("SELECT employee_code FROM IRAI.M_Employee WHERE employee_id = " & rs("assignee_id"))
-If Not rsEmpAsg.EOF Then assigneeEmployeeCode = rsEmpAsg("employee_code") & ""
-CloseRecordset rsEmpAsg
-CloseDBConnection connEmpEdit
+requesterEmployeeCode = rs("requester_code") & ""
+assigneeEmployeeCode  = rs("assignee_code")  & ""
 
 ' 取引先・案件の表示用名称を決定
 ' POST-backエラー時はフォーム値＋DB参照、初期表示時はT_Requestの保存値を使用
@@ -483,7 +459,7 @@ CloseDBConnection conn
     // ============================================================
     // 取引先: コード入力 onblur → API参照して名称を表示
     // ============================================================
-    var currentClientId = null; // 案件検索モーダルで取引先を絞り込むために保持
+    var currentClientCode = null; // 案件検索モーダルで取引先を絞り込むために保持
 
     function lookupClient() {
         var codeInput   = document.getElementById('client_code');
@@ -493,13 +469,13 @@ CloseDBConnection conn
         if (code === '') {
             nameDisplay.textContent = '';
             nameDisplay.className = 'employee-name-display';
-            currentClientId = null;
+            currentClientCode = null;
             // 取引先が消えたら案件もクリア
             document.getElementById('project_code').value = '';
             document.getElementById('project_name_display').textContent = '';
             document.getElementById('project_name_display').className = 'employee-name-display';
             allProjects = null;
-            currentProjectClientId = null;
+            currentProjectClientCode = null;
             return;
         }
 
@@ -512,15 +488,15 @@ CloseDBConnection conn
                     if (result.found) {
                         nameDisplay.textContent = result.name;
                         nameDisplay.className = 'employee-name-display employee-name-found';
-                        currentClientId = result.id;
+                        currentClientCode = code;
                     } else {
                         nameDisplay.textContent = '該当なし';
                         nameDisplay.className = 'employee-name-display employee-name-notfound';
-                        currentClientId = null;
+                        currentClientCode = null;
                     }
                 } catch (e) {
                     nameDisplay.textContent = '';
-                    currentClientId = null;
+                    currentClientCode = null;
                 }
             }
         };
@@ -619,36 +595,36 @@ CloseDBConnection conn
         var html = '<table class="data-table" style="width:100%;"><thead><tr><th>コード</th><th>取引先名</th></tr></thead><tbody>';
         for (var i = 0; i < filtered.length; i++) {
             var c = filtered[i];
-            html += '<tr style="cursor:pointer;" onclick="selectClient(' + c.id + ',\'' + escJS(c.code) + '\',\'' + escJS(c.name) + '\')">' +
+            html += '<tr style="cursor:pointer;" onclick="selectClient(\'' + escJS(c.code) + '\',\'' + escJS(c.name) + '\')">' +
                     '<td>' + escHtml(c.code) + '</td><td>' + escHtml(c.name) + '</td></tr>';
         }
         html += '</tbody></table>';
         result.innerHTML = html;
     }
 
-    function selectClient(id, code, name) {
+    function selectClient(code, name) {
         document.getElementById('client_code').value = code;
         var nameDisplay = document.getElementById('client_name_display');
         nameDisplay.textContent = name;
         nameDisplay.className = 'employee-name-display employee-name-found';
-        currentClientId = id;
+        currentClientCode = code;
         closeClientSearch();
         // 取引先が変わったので案件をクリア
         document.getElementById('project_code').value = '';
         document.getElementById('project_name_display').textContent = '';
         document.getElementById('project_name_display').className = 'employee-name-display';
         allProjects = null;
-        currentProjectClientId = null;
+        currentProjectClientCode = null;
     }
 
     // ============================================================
     // 案件検索モーダル（選択中の取引先で絞り込み）
     // ============================================================
     var allProjects = null;
-    var currentProjectClientId = null;
+    var currentProjectClientCode = null;
 
     function openProjectSearch() {
-        if (!currentClientId) {
+        if (!currentClientCode) {
             alert('先に取引先コードを入力するか、検索ボタンで取引先を選択してください。');
             return;
         }
@@ -657,11 +633,11 @@ CloseDBConnection conn
         setTimeout(function() { document.getElementById('projectSearchKeyword').focus(); }, 100);
 
         // 取引先が変わった場合は再取得
-        if (allProjects === null || currentProjectClientId !== String(currentClientId)) {
-            currentProjectClientId = String(currentClientId);
+        if (allProjects === null || currentProjectClientCode !== currentClientCode) {
+            currentProjectClientCode = currentClientCode;
             allProjects = null;
             var xhr = new XMLHttpRequest();
-            xhr.open('GET', 'api_project_lookup.asp?action=projects&client_id=' + currentClientId, true);
+            xhr.open('GET', 'api_project_lookup.asp?action=projects&client_code=' + encodeURIComponent(currentClientCode), true);
             xhr.onreadystatechange = function() {
                 if (xhr.readyState === 4 && xhr.status === 200) {
                     try {
@@ -706,14 +682,14 @@ CloseDBConnection conn
         var html = '<table class="data-table" style="width:100%;"><thead><tr><th>コード</th><th>案件名</th></tr></thead><tbody>';
         for (var i = 0; i < filtered.length; i++) {
             var p = filtered[i];
-            html += '<tr style="cursor:pointer;" onclick="selectProject(' + p.id + ',\'' + escJS(p.code) + '\',\'' + escJS(p.name) + '\')">' +
+            html += '<tr style="cursor:pointer;" onclick="selectProject(\'' + escJS(p.code) + '\',\'' + escJS(p.name) + '\')">' +
                     '<td>' + escHtml(p.code) + '</td><td>' + escHtml(p.name) + '</td></tr>';
         }
         html += '</tbody></table>';
         result.innerHTML = html;
     }
 
-    function selectProject(id, code, name) {
+    function selectProject(code, name) {
         document.getElementById('project_code').value = code;
         var nameDisplay = document.getElementById('project_name_display');
         nameDisplay.textContent = name;

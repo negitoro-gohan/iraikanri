@@ -100,19 +100,10 @@ If rs.EOF Then
     Response.End
 End If
 
-' 社員コードをEmployee DBから取得
+' 社員コードをT_Requestから直接取得
 Dim requesterCode, assigneeCode
-requesterCode = ""
-assigneeCode  = ""
-Dim connEmpResp, rsEmpResp
-Set connEmpResp = GetEmployeeDBConnection()
-Set rsEmpResp = connEmpResp.Execute("SELECT employee_code FROM IRAI.M_Employee WHERE employee_id = " & rs("requester_id"))
-If Not rsEmpResp.EOF Then requesterCode = rsEmpResp("employee_code") & ""
-CloseRecordset rsEmpResp
-Set rsEmpResp = connEmpResp.Execute("SELECT employee_code FROM IRAI.M_Employee WHERE employee_id = " & rs("assignee_id"))
-If Not rsEmpResp.EOF Then assigneeCode = rsEmpResp("employee_code") & ""
-CloseRecordset rsEmpResp
-CloseDBConnection connEmpResp
+requesterCode = rs("requester_code") & ""
+assigneeCode  = rs("assignee_code")  & ""
 %>
 <!DOCTYPE html>
 <html lang="ja">
